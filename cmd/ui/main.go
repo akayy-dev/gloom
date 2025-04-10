@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/log"
 )
@@ -45,6 +47,14 @@ func main() {
 			table: CreateNewsTable(),
 		},
 	}
+
+	f, err := os.OpenFile("./debug.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.SetOutput(f)
+	defer f.Close()
+
 	p := tea.NewProgram(m)
 	p.Run()
 }

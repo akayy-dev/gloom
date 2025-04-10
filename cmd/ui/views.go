@@ -32,7 +32,6 @@ func (d Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				d.table.Focus()
 
 			}
-
 		}
 	}
 	d.table, returnCmd = d.table.Update(msg)
