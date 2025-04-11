@@ -46,6 +46,8 @@ type NewsMsg NewsData
 func GetNewsData() tea.Cmd {
 	URL := fmt.Sprintf("https://www.alphavantage.co/query?function=NEWS_SENTIMENT&topics=economy_macro&finance&apikey=%v", os.Getenv("ALPHA_KEY"))
 
+	log.Info(URL)
+
 	resp, err := http.Get(URL)
 
 	if err != nil {

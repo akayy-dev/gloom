@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"strconv"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/log"
@@ -10,6 +11,7 @@ import (
 // The "entry" model.
 type MainModel struct {
 	activeModel tea.Model
+	tabs        []tea.Model
 }
 
 func (m MainModel) Init() tea.Cmd {
@@ -17,13 +19,18 @@ func (m MainModel) Init() tea.Cmd {
 }
 
 func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	updatedChild, cmd := m.activeModel.Update(msg)
-	updatedModel := MainModel{
-		activeModel: updatedChild,
-	}
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		for i, _ := range m.tabs {
+			log.Infof("index %v", i)
+			// run if key index is equal to key pressed (accounting for 0 index shift)
+			if keyIndex, err := strconv.Atoi(msg.String()); err == nil && i+1 == keyIndex {
+				m.activeModel = m.tabs[i]
+				m.activeModel.Init()
+				log.Infof("Switching to view tabs[%d]", i)
+			}
+		}
 		switch msg.String() {
 		case "Q":
 			fallthrough
@@ -35,6 +42,11 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.activeModel, tea.ClearScreen
 	}
 
+	updatedChild, cmd := m.activeModel.Update(msg)
+	updatedModel := MainModel{
+		activeModel: updatedChild,
+		tabs:        m.tabs,
+	}
 	return updatedModel, cmd
 }
 
@@ -47,6 +59,13 @@ func main() {
 		activeModel: Dashboard{
 			name:      "Dashboard A",
 			newsTable: CreateNewsTable(),
+		},
+		tabs: []tea.Model{
+			Dashboard{
+				name:      "Dashboard A",
+				newsTable: CreateNewsTable(),
+			},
+			EconomicCalendar{},
 		},
 	}
 

@@ -26,6 +26,8 @@ type Dashboard struct {
 	newsTable  table.Model
 	height     int
 	width      int
+	tables     []table.Model
+	focused    int
 }
 
 func (d Dashboard) Init() tea.Cmd {
@@ -102,6 +104,8 @@ func (d Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		d.height = msg.Height
 		d.width = msg.Width
 
+		log.Infof("Width set to %d, Height set to %d", d.height, d.width)
+
 	case internal.NewsMsg:
 		var rows []table.Row
 		for _, article := range msg.Feed {
@@ -111,7 +115,24 @@ func (d Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			})
 		}
 
-		d.newsTable.SetRows(rows)
+		columns := []table.Column{
+			{Title: "Headline", Width: int(float64(d.width) * 0.8)},
+			{Title: "Time", Width: int(float64(d.width) * 0.15)},
+		}
+
+		s := table.DefaultStyles()
+
+		s.Header = s.Header.
+			Background(lipgloss.Color("#703FFD")).
+			BorderBottom(true).
+			Bold(true)
+
+		d.newsTable = table.New(
+			table.WithRows(rows),
+			table.WithColumns(columns),
+			table.WithStyles(s),
+			table.WithFocused(false),
+		)
 	}
 
 	d.cmdtyTable, _ = d.cmdtyTable.Update(msg)
@@ -129,5 +150,21 @@ func (d Dashboard) View() string {
 		Border(lipgloss.NormalBorder()).
 		BorderForeground(lipgloss.Color("#FFFFFF")).
 		Render(d.newsTable.View())
-	return lipgloss.JoinVertical(0, cmtdyStyle, newsStyle)
+	return lipgloss.JoinVertical(0, d.name, cmtdyStyle, newsStyle)
+}
+
+type EconomicCalendar struct {
+}
+
+func (cal EconomicCalendar) Init() tea.Cmd {
+	return nil
+}
+
+func (cal EconomicCalendar) Update(tea.Msg) (tea.Model, tea.Cmd) {
+	return cal, nil
+
+}
+
+func (cal EconomicCalendar) View() string {
+	return "Economic Calendar"
 }
