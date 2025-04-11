@@ -13,7 +13,7 @@ type MainModel struct {
 }
 
 func (m MainModel) Init() tea.Cmd {
-	return tea.Batch(tea.ClearScreen, tea.SetWindowTitle("Gloomberg Terminal"))
+	return tea.Batch(tea.ClearScreen, tea.SetWindowTitle("Gloomberg Terminal"), m.activeModel.Init())
 }
 
 func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -31,6 +31,8 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			log.Info("Exiting on user request")
 			return m.activeModel, tea.Quit
 		}
+	case tea.QuitMsg:
+		return m.activeModel, tea.ClearScreen
 	}
 
 	return updatedModel, cmd
@@ -43,8 +45,8 @@ func (m MainModel) View() string {
 func main() {
 	m := MainModel{
 		activeModel: Dashboard{
-			name:  "Dashboard A",
-			table: CreateNewsTable(),
+			name:      "Dashboard A",
+			newsTable: CreateNewsTable(),
 		},
 	}
 
