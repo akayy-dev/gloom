@@ -10,25 +10,28 @@ import (
 
 // The "entry" model.
 type MainModel struct {
-	activeModel tea.Model
-	tabs        []tea.Model
+	// pointers to all the tabs
+	tabs []*tea.Model
+	// index of active tab in the list
+	activeTab int
 }
 
 func (m MainModel) Init() tea.Cmd {
-	return tea.Batch(tea.ClearScreen, tea.SetWindowTitle("Gloomberg Terminal"), m.activeModel.Init())
+	tab := *m.tabs[m.activeTab]
+	return tea.Batch(tea.ClearScreen, tea.SetWindowTitle("Gloomberg Terminal"), tab.Init())
 }
 
 func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-
+	// tab := *m.tabs[m.activeTab]
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		for i, _ := range m.tabs {
 			log.Infof("index %v", i)
 			// run if key index is equal to key pressed (accounting for 0 index shift)
 			if keyIndex, err := strconv.Atoi(msg.String()); err == nil && i+1 == keyIndex {
-				m.activeModel = m.tabs[i]
-				m.activeModel.Init()
+				m.activeTab = i
 				log.Infof("Switching to view tabs[%d]", i)
+				return m, nil
 			}
 		}
 		switch msg.String() {
@@ -36,37 +39,36 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			fallthrough
 		case "q":
 			log.Info("Exiting on user request")
-			return m.activeModel, tea.Quit
+			return m, tea.Quit
 		}
 	case tea.QuitMsg:
-		return m.activeModel, tea.ClearScreen
+		return m, tea.ClearScreen
 	}
 
-	updatedChild, cmd := m.activeModel.Update(msg)
 	updatedModel := MainModel{
-		activeModel: updatedChild,
-		tabs:        m.tabs,
+		tabs:      m.tabs,
+		activeTab: m.activeTab,
 	}
-	return updatedModel, cmd
+	return updatedModel, nil
 }
 
 func (m MainModel) View() string {
-	return m.activeModel.View()
+	tab := *m.tabs[m.activeTab]
+
+	return tab.View()
 }
 
 func main() {
+	var dash tea.Model = &Dashboard{
+		name:      "Dashboard A",
+		newsTable: CreateNewsTable(),
+	}
+
+	var cal tea.Model = &EconomicCalendar{}
+
 	m := MainModel{
-		activeModel: Dashboard{
-			name:      "Dashboard A",
-			newsTable: CreateNewsTable(),
-		},
-		tabs: []tea.Model{
-			Dashboard{
-				name:      "Dashboard A",
-				newsTable: CreateNewsTable(),
-			},
-			EconomicCalendar{},
-		},
+		tabs:      []*tea.Model{&dash, &cal},
+		activeTab: 0,
 	}
 
 	f, err := os.OpenFile("./debug.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
