@@ -22,12 +22,13 @@ func (m MainModel) Init() tea.Cmd {
 }
 
 func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	// tab := *m.tabs[m.activeTab]
+	tab := *m.tabs[m.activeTab]
+	tab.Update(msg)
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		for i, _ := range m.tabs {
-			log.Infof("index %v", i)
 			// run if key index is equal to key pressed (accounting for 0 index shift)
+			// TODO: Test if this actually preserves state.
 			if keyIndex, err := strconv.Atoi(msg.String()); err == nil && i+1 == keyIndex {
 				m.activeTab = i
 				log.Infof("Switching to view tabs[%d]", i)
@@ -60,8 +61,7 @@ func (m MainModel) View() string {
 
 func main() {
 	var dash tea.Model = &Dashboard{
-		name:      "Dashboard A",
-		newsTable: CreateNewsTable(),
+		name: "Dashboard A",
 	}
 
 	var cal tea.Model = &EconomicCalendar{}

@@ -1,9 +1,6 @@
 package main
 
 import (
-	"fmt"
-	"gloomberg/internal"
-
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/log"
@@ -21,136 +18,62 @@ type CommodityUpdateMsg []Commodity
 
 // What the user opens to, should have general information on the market.
 type Dashboard struct {
-	name       string
-	cmdtyTable table.Model
-	newsTable  table.Model
-	height     int
-	width      int
-	tables     []table.Model
-	focused    int
+	name string
+	// screen height
+	height int
+	// screen width
+	width int
+	// List of tables, tables[0] is commodities, tables[1] is stocks, tables[3] is news
+	tables  []table.Model
+	focused int
 }
 
-func (d Dashboard) Init() tea.Cmd {
-	cmdtyData := []Commodity{
-		{
-			Name:           "GOLD/USD",
-			Price:          250,
-			OneDayMovement: 5,
-		},
-		{
-			Name:           "SILVER/USD",
-			Price:          30,
-			OneDayMovement: 1.2,
-		},
-		{
-			Name:           "OIL/USD",
-			Price:          85,
-			OneDayMovement: -0.5,
-		},
-	}
-
-	return tea.Batch(func() tea.Msg {
-		log.Info("Init command executing")
-		return CommodityUpdateMsg(cmdtyData)
-	}, internal.GetNewsData())
+func (d *Dashboard) Init() tea.Cmd {
+	// create and style newstable
+	newsTable := CreateNewsTable()
+	stockTable := table.New(
+		table.WithHeight(d.height),
+		table.WithWidth(d.width/3),
+	)
+	d.tables = append(d.tables, newsTable, stockTable)
+	return nil
 }
 
-func (d Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	log.Info("Received message", "type", fmt.Sprintf("%T", msg))
-	var returnCmd tea.Cmd
+func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "esc":
-			if d.newsTable.Focused() {
-				log.Info("Blurring")
-				d.newsTable.Blur()
-			} else {
-				log.Info("Focusing")
-				d.newsTable.Focus()
-			}
-		}
-	case CommodityUpdateMsg:
-		log.Info("Commodity update")
-		cmdtyRows := []table.Row{}
-		for _, cmdty := range msg {
-			// add rowdata to cmdtyRows here.
-			row := table.Row{
-				cmdty.Name,
-				fmt.Sprintf("%.2f", cmdty.Price),
-				fmt.Sprintf("%.2f%%", cmdty.OneDayMovement),
-			}
-			cmdtyRows = append(cmdtyRows, row)
-		}
-
-		s := table.DefaultStyles()
-		s.Header = s.Header.
-			BorderForeground(lipgloss.Color("#FFFFFF")).
-			Background(lipgloss.Color("#703FFD")).
-			BorderBottom(true).
-			Bold(true)
-
-		d.cmdtyTable = table.New(
-			table.WithRows(cmdtyRows),
-			table.WithColumns([]table.Column{
-				{Title: "Commodity", Width: int(float64(d.width) * 0.75)},
-				{Title: "Price", Width: int(float64(d.width) * .1)},
-				{Title: "1D", Width: int(float64(d.width) * .1)},
-			}),
-			table.WithStyles(s),
-			table.WithFocused(true),
-		)
 	case tea.WindowSizeMsg:
-		d.height = msg.Height
 		d.width = msg.Width
+		d.height = msg.Height
 
-		log.Infof("Width set to %d, Height set to %d", d.height, d.width)
+		d.tables[0].SetWidth(int(float64(d.width) * 0.65))
+		d.tables[1].SetWidth(int(float64(d.width) * 0.32))
 
-	case internal.NewsMsg:
-		var rows []table.Row
-		for _, article := range msg.Feed {
-			rows = append(rows, table.Row{
-				article.Title,
-				article.TimePublished,
-			})
+		d.tables[0].SetHeight(int(float64(d.height) * 0.65))
+		d.tables[1].SetHeight(int(float64(d.height) * 0.65))
+
+	case tea.KeyMsg:
+		log.Info(msg.String())
+		switch msg.String() {
+		case "tab":
+			// unfocus currently focused table
+			d.tables[d.focused].Blur()
+			if d.focused < len(d.tables)-1 {
+				d.focused += 1
+			} else {
+				d.focused = 0
+			}
+			d.tables[d.focused].Focus()
+			log.Infof("Focusing on table %d", d.focused)
 		}
-
-		columns := []table.Column{
-			{Title: "Headline", Width: int(float64(d.width) * 0.8)},
-			{Title: "Time", Width: int(float64(d.width) * 0.15)},
-		}
-
-		s := table.DefaultStyles()
-
-		s.Header = s.Header.
-			Background(lipgloss.Color("#703FFD")).
-			BorderBottom(true).
-			Bold(true)
-
-		d.newsTable = table.New(
-			table.WithRows(rows),
-			table.WithColumns(columns),
-			table.WithStyles(s),
-			table.WithFocused(false),
-		)
 	}
-
-	d.cmdtyTable, _ = d.cmdtyTable.Update(msg)
-	d.newsTable, _ = d.newsTable.Update(msg)
-	return d, returnCmd
+	return d, nil
 }
 
-func (d Dashboard) View() string {
-	cmtdyStyle := lipgloss.NewStyle().
-		Align(lipgloss.Top, lipgloss.Center).
-		Border(lipgloss.NormalBorder()).
-		Render(d.cmdtyTable.View())
+func (d *Dashboard) View() string {
 	newsStyle := lipgloss.NewStyle().
-		Align(lipgloss.Left, lipgloss.Bottom).
-		Border(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("#FFFFFF")).
-		Render(d.newsTable.View())
-	return lipgloss.JoinVertical(0, d.name, cmtdyStyle, newsStyle)
+		Border(lipgloss.NormalBorder())
+	return lipgloss.JoinHorizontal(0, newsStyle.Render(d.tables[0].View()), newsStyle.Render(d.tables[1].View()))
+
 }
 
 type EconomicCalendar struct {
