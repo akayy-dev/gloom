@@ -39,7 +39,7 @@ func (d *Dashboard) Init() tea.Cmd {
 
 	foucsedInnerStyle := table.Styles{
 		Header:   lipgloss.NewStyle().Bold(true).Background(lipgloss.Color("#703FFD")).Foreground(lipgloss.Color("#FFFFFF")),
-		Cell:     lipgloss.NewStyle().Padding(0, 1),
+		Cell:     lipgloss.NewStyle().Padding(0, 0),
 		Selected: lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFFF")),
 	}
 
@@ -62,6 +62,7 @@ func (d *Dashboard) Init() tea.Cmd {
 	d.tables = append(d.tables, cmdtyTable, stockTable)
 
 	d.tables[d.focused].SetStyles(d.focusedStyle.innerStyle)
+	d.tables[d.focused].Focus()
 	return nil
 }
 
@@ -85,7 +86,7 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		d.tables[1].SetHeight(topTablesHeight)
 
 		// The width of the Commodity COLUMN.
-		cmdtyColumnWidth := int(float64(topTablesHeight) * .66)
+		cmdtyColumnWidth := int(float64(topTablesWidth) * .66)
 		// the width of the 5d, 1d, and current price column
 		priceMovementColumnWidth := topTablesWidth - cmdtyColumnWidth
 		cmdtyTableColumns := []table.Column{
@@ -97,16 +98,25 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		d.tables[0].SetColumns(cmdtyTableColumns)
 
+		stockColumns := []table.Column{
+			{Title: "Symbol", Width: int(float64(topTablesWidth) * .33)},
+			{Title: "1D", Width: int(float64(topTablesWidth) * .33)},
+			{Title: "Price", Width: int(float64(topTablesWidth) * .33)},
+		}
+
+		d.tables[1].SetColumns(stockColumns)
+
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "tab":
 			// unfocus currently focused table
+			// BUG: Table header background color does not fit full width of table.
 			d.tables[d.focused].Blur()
 			if d.focused < len(d.tables)-1 {
 				d.tables[d.focused].SetStyles(d.unfocusedStyle.innerStyle)
 				d.focused += 1
 			} else {
-				d.tables[d.focused].SetStyles(d.focusedStyle.innerStyle)
+				d.tables[d.focused].SetStyles(d.unfocusedStyle.innerStyle)
 				d.focused = 0
 			}
 			d.tables[d.focused].Focus()
@@ -119,12 +129,22 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (d *Dashboard) View() string {
-	newsStyle := lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder())
-	return lipgloss.JoinHorizontal(0,
-		newsStyle.Render(d.tables[0].View()),
-		newsStyle.Render(d.tables[1].View()),
+	foucsedBorder := lipgloss.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color("#703FFD"))
+	unfocusedBorder := lipgloss.NewStyle().Border(lipgloss.NormalBorder())
+
+	var styledTables []string
+	for _, t := range d.tables {
+		if t.Focused() {
+			styledTables = append(styledTables, foucsedBorder.Render(t.View()))
+		} else {
+			styledTables = append(styledTables, unfocusedBorder.Render(t.View()))
+		}
+	}
+
+	upperDiv := lipgloss.JoinHorizontal(0,
+		styledTables[0], styledTables[1],
 	)
+	return upperDiv
 
 }
 
