@@ -31,20 +31,24 @@ type Dashboard struct {
 }
 
 func (d *Dashboard) Init() tea.Cmd {
-	cmdtyTable := table.New()
+	cmdtyTable := table.New(table.WithFocused(false))
 
-	stockTable := table.New()
+	stockTable := table.New(table.WithFocused(false))
 
-	lipgloss.NewStyle().BorderForeground(lipgloss.Color("#FFFFFF")).Border(lipgloss.NormalBorder())
+	newsTable := table.New(table.WithFocused(false))
 
 	foucsedInnerStyle := table.Styles{
-		Header:   lipgloss.NewStyle().Bold(true).Background(lipgloss.Color("#703FFD")).Foreground(lipgloss.Color("#FFFFFF")),
-		Cell:     lipgloss.NewStyle().Padding(0, 0),
+		Header: lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#FFFFFF")),
+		Cell:     lipgloss.NewStyle().Padding(0, 1),
 		Selected: lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFFF")),
 	}
 
 	unfocusedInnerStyle := table.Styles{
-		Header:   lipgloss.NewStyle().BorderForeground(lipgloss.Color("#703FFD")),
+		Header: lipgloss.NewStyle().
+			BorderForeground(lipgloss.Color("#703FFD")).
+			Bold(false),
 		Cell:     lipgloss.NewStyle().Padding(0, 1),
 		Selected: lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFF")),
 	}
@@ -59,7 +63,12 @@ func (d *Dashboard) Init() tea.Cmd {
 		outerStyle: lipgloss.NewStyle().BorderForeground(lipgloss.Color("#FFFFFF")).Border(lipgloss.NormalBorder()),
 	}
 
-	d.tables = append(d.tables, cmdtyTable, stockTable)
+	d.tables = append(d.tables, cmdtyTable, stockTable, newsTable)
+
+	// keeps other tables from having boldface columns by default
+	for i, _ := range d.tables {
+		d.tables[i].SetStyles(d.unfocusedStyle.innerStyle)
+	}
 
 	d.tables[d.focused].SetStyles(d.focusedStyle.innerStyle)
 	d.tables[d.focused].Focus()
@@ -144,7 +153,9 @@ func (d *Dashboard) View() string {
 	upperDiv := lipgloss.JoinHorizontal(0,
 		styledTables[0], styledTables[1],
 	)
-	return upperDiv
+
+	content := lipgloss.JoinVertical(0, upperDiv, "NEWS")
+	return content
 
 }
 
