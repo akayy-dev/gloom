@@ -8,13 +8,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-type Commodity struct {
-	Name           string
-	Price          float64
-	OneDayMovement float64
+type TableStyle struct {
+	innerStyle table.Styles
+	outerStyle lipgloss.Style
 }
-
-type CommodityUpdateMsg []Commodity
 
 // What the user opens to, should have general information on the market.
 type Dashboard struct {
@@ -24,19 +21,47 @@ type Dashboard struct {
 	// screen width
 	width int
 	// List of tables, tables[0] is commodities, tables[1] is stocks, tables[3] is news
-	tables  []table.Model
+	tables []table.Model
+	// index of the focused table
 	focused int
+	// unfocused style
+	focusedStyle TableStyle
+	// focused style
+	unfocusedStyle TableStyle
 }
 
 func (d *Dashboard) Init() tea.Cmd {
-	// Cmdty and stock table width
-
 	cmdtyTable := table.New()
 
 	stockTable := table.New()
 
-	stockTable.Columns()
+	lipgloss.NewStyle().BorderForeground(lipgloss.Color("#FFFFFF")).Border(lipgloss.NormalBorder())
+
+	foucsedInnerStyle := table.Styles{
+		Header:   lipgloss.NewStyle().Bold(true).Background(lipgloss.Color("#703FFD")).Foreground(lipgloss.Color("#FFFFFF")),
+		Cell:     lipgloss.NewStyle().Padding(0, 1),
+		Selected: lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFFF")),
+	}
+
+	unfocusedInnerStyle := table.Styles{
+		Header:   lipgloss.NewStyle().BorderForeground(lipgloss.Color("#703FFD")),
+		Cell:     lipgloss.NewStyle().Padding(0, 1),
+		Selected: lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFF")),
+	}
+
+	d.focusedStyle = TableStyle{
+		innerStyle: foucsedInnerStyle,
+		outerStyle: lipgloss.NewStyle().BorderForeground(lipgloss.Color("#703FFD")).Border(lipgloss.NormalBorder()),
+	}
+
+	d.unfocusedStyle = TableStyle{
+		innerStyle: unfocusedInnerStyle,
+		outerStyle: lipgloss.NewStyle().BorderForeground(lipgloss.Color("#FFFFFF")).Border(lipgloss.NormalBorder()),
+	}
+
 	d.tables = append(d.tables, cmdtyTable, stockTable)
+
+	d.tables[d.focused].SetStyles(d.focusedStyle.innerStyle)
 	return nil
 }
 
@@ -78,11 +103,14 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// unfocus currently focused table
 			d.tables[d.focused].Blur()
 			if d.focused < len(d.tables)-1 {
+				d.tables[d.focused].SetStyles(d.unfocusedStyle.innerStyle)
 				d.focused += 1
 			} else {
+				d.tables[d.focused].SetStyles(d.focusedStyle.innerStyle)
 				d.focused = 0
 			}
 			d.tables[d.focused].Focus()
+			d.tables[d.focused].SetStyles(d.focusedStyle.innerStyle)
 
 			log.Infof("Focusing on table %v", d.focused)
 		}
@@ -93,7 +121,10 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (d *Dashboard) View() string {
 	newsStyle := lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder())
-	return lipgloss.JoinHorizontal(0, newsStyle.Render(d.tables[0].View()), newsStyle.Render(d.tables[1].View()))
+	return lipgloss.JoinHorizontal(0,
+		newsStyle.Render(d.tables[0].View()),
+		newsStyle.Render(d.tables[1].View()),
+	)
 
 }
 
