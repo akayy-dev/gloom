@@ -29,13 +29,14 @@ type Dashboard struct {
 }
 
 func (d *Dashboard) Init() tea.Cmd {
-	// create and style newstable
-	newsTable := CreateNewsTable()
-	stockTable := table.New(
-		table.WithHeight(d.height),
-		table.WithWidth(d.width/3),
-	)
-	d.tables = append(d.tables, newsTable, stockTable)
+	// Cmdty and stock table width
+
+	cmdtyTable := table.New()
+
+	stockTable := table.New()
+
+	stockTable.Columns()
+	d.tables = append(d.tables, cmdtyTable, stockTable)
 	return nil
 }
 
@@ -45,14 +46,33 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		d.width = msg.Width
 		d.height = msg.Height
 
-		d.tables[0].SetWidth(int(float64(d.width) * 0.65))
-		d.tables[1].SetWidth(int(float64(d.width) * 0.32))
+		// Redraw tables
 
-		d.tables[0].SetHeight(int(float64(d.height) * 0.65))
-		d.tables[1].SetHeight(int(float64(d.height) * 0.65))
+		// NOTE: For some reason using exactly 1/2 the width and 2/3 the screen
+		// draws the border past it's boundaries. whatever make it slightly less
+		topTablesWidth := int(float64(d.width) * .47)
+		topTablesHeight := int(float64(d.height) * .65)
+
+		d.tables[0].SetWidth(topTablesWidth)
+		d.tables[1].SetWidth(topTablesWidth)
+
+		d.tables[0].SetHeight(topTablesHeight)
+		d.tables[1].SetHeight(topTablesHeight)
+
+		// The width of the Commodity COLUMN.
+		cmdtyColumnWidth := int(float64(topTablesHeight) * .66)
+		// the width of the 5d, 1d, and current price column
+		priceMovementColumnWidth := topTablesWidth - cmdtyColumnWidth
+		cmdtyTableColumns := []table.Column{
+			{Title: "Commodity", Width: cmdtyColumnWidth},
+			{Title: "1D", Width: int(float64(priceMovementColumnWidth) * .33)},
+			{Title: "5D", Width: int(float64(priceMovementColumnWidth) * .33)},
+			{Title: "Price", Width: int(float64(priceMovementColumnWidth) * .33)},
+		}
+
+		d.tables[0].SetColumns(cmdtyTableColumns)
 
 	case tea.KeyMsg:
-		log.Info(msg.String())
 		switch msg.String() {
 		case "tab":
 			// unfocus currently focused table
@@ -63,7 +83,8 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				d.focused = 0
 			}
 			d.tables[d.focused].Focus()
-			log.Infof("Focusing on table %d", d.focused)
+
+			log.Infof("Focusing on table %v", d.focused)
 		}
 	}
 	return d, nil
