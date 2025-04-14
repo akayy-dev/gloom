@@ -8,21 +8,26 @@ import (
 	"github.com/charmbracelet/log"
 )
 
+type Tab struct {
+	name  string
+	model tea.Model
+}
+
 // The "entry" model.
 type MainModel struct {
 	// pointers to all the tabs
-	tabs []*tea.Model
+	tabs []*Tab
 	// index of active tab in the list
 	activeTab int
 }
 
 func (m MainModel) Init() tea.Cmd {
-	tab := *m.tabs[m.activeTab]
+	tab := *&m.tabs[m.activeTab].model
 	return tea.Batch(tea.ClearScreen, tea.SetWindowTitle("Gloomberg Terminal"), tab.Init())
 }
 
 func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	tab := *m.tabs[m.activeTab]
+	tab := *&m.tabs[m.activeTab].model
 	tab.Update(msg)
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -54,7 +59,7 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m MainModel) View() string {
-	tab := *m.tabs[m.activeTab]
+	tab := *&m.tabs[m.activeTab].model
 
 	return tab.View()
 }
@@ -66,8 +71,18 @@ func main() {
 
 	var cal tea.Model = &EconomicCalendar{}
 
+	dashTab := &Tab{
+		name:  "Dashboard",
+		model: dash,
+	}
+
+	calTab := &Tab{
+		name:  "Calendar",
+		model: cal,
+	}
+
 	m := MainModel{
-		tabs:      []*tea.Model{&dash, &cal},
+		tabs:      []*Tab{dashTab, calTab},
 		activeTab: 0,
 	}
 

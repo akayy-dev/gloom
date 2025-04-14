@@ -1,6 +1,8 @@
 package main
 
 import (
+	"math"
+
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/log"
@@ -70,7 +72,6 @@ func (d *Dashboard) Init() tea.Cmd {
 		d.tables[i].SetStyles(d.unfocusedStyle.innerStyle)
 	}
 
-	d.tables[d.focused].SetStyles(d.focusedStyle.innerStyle)
 	d.tables[d.focused].Focus()
 	return nil
 }
@@ -85,7 +86,7 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// NOTE: For some reason using exactly 1/2 the width and 2/3 the screen
 		// draws the border past it's boundaries. whatever make it slightly less
-		topTablesWidth := int(float64(d.width) * .47)
+		topTablesWidth := int(float64(d.width) * .49)
 		topTablesHeight := int(float64(d.height) * .65)
 
 		d.tables[0].SetWidth(topTablesWidth)
@@ -115,6 +116,17 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		d.tables[1].SetColumns(stockColumns)
 
+		newsTableWidth := topTablesWidth * 2
+		newsColumns := []table.Column{
+			{Title: "Headline", Width: int(math.Ceil(float64(newsTableWidth) * .75))},
+			{Title: "Source", Width: int(math.Ceil(float64(newsTableWidth) * .125))},
+			{Title: "Date", Width: int(math.Ceil(float64(newsTableWidth) * .125))},
+		}
+
+		d.tables[2].SetColumns(newsColumns)
+		d.tables[2].SetWidth(newsTableWidth)
+		d.tables[2].SetHeight(d.height - topTablesHeight - 5)
+
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "tab":
@@ -127,6 +139,19 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else {
 				d.tables[d.focused].SetStyles(d.unfocusedStyle.innerStyle)
 				d.focused = 0
+			}
+			d.tables[d.focused].Focus()
+			d.tables[d.focused].SetStyles(d.focusedStyle.innerStyle)
+
+			log.Infof("Focusing on table %v", d.focused)
+		case "shift+tab":
+			d.tables[d.focused].Blur()
+			if d.focused > 0 {
+				d.tables[d.focused].SetStyles(d.unfocusedStyle.innerStyle)
+				d.focused -= 1
+			} else {
+				d.tables[d.focused].SetStyles(d.unfocusedStyle.innerStyle)
+				d.focused = len(d.tables) - 1
 			}
 			d.tables[d.focused].Focus()
 			d.tables[d.focused].SetStyles(d.focusedStyle.innerStyle)
@@ -154,7 +179,7 @@ func (d *Dashboard) View() string {
 		styledTables[0], styledTables[1],
 	)
 
-	content := lipgloss.JoinVertical(0, upperDiv, "NEWS")
+	content := lipgloss.JoinVertical(0, upperDiv, styledTables[2])
 	return content
 
 }
