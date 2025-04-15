@@ -36,7 +36,7 @@ type Dashboard struct {
 }
 
 func (d *Dashboard) Init() tea.Cmd {
-	cmdtyTable := table.New(table.WithFocused(true))
+	cmdtyTable := table.New(table.WithFocused(false))
 
 	stockTable := table.New(table.WithFocused(false))
 
@@ -44,9 +44,10 @@ func (d *Dashboard) Init() tea.Cmd {
 
 	foucsedInnerStyle := table.Styles{
 		Header: lipgloss.NewStyle().
+			Align(lipgloss.Center).
 			Bold(true).
 			Foreground(lipgloss.Color("#FFFFFF")),
-		Cell:     lipgloss.NewStyle().Padding(0, 1),
+		Cell:     lipgloss.NewStyle(),
 		Selected: lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFFF")),
 	}
 
@@ -54,7 +55,7 @@ func (d *Dashboard) Init() tea.Cmd {
 		Header: lipgloss.NewStyle().
 			BorderForeground(lipgloss.Color("#703FFD")).
 			Bold(false),
-		Cell:     lipgloss.NewStyle().Padding(0, 1),
+		Cell:     lipgloss.NewStyle(),
 		Selected: lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFF")),
 	}
 
@@ -77,7 +78,7 @@ func (d *Dashboard) Init() tea.Cmd {
 
 	d.tables[0].Focus()
 
-	return scraping.GetCommodities
+	return tea.Batch(scraping.GetCommodities, scraping.GetYahooNews, func() tea.Msg { return scraping.CommodityUpdateTick() })
 }
 
 func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -101,13 +102,13 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		d.tables[1].SetHeight(topTablesHeight)
 
 		// The width of the Commodity COLUMN.
-		cmdtyColumnWidth := int(float64(topTablesWidth) * .66)
+		cmdtyColumnWidth := int(float64(topTablesWidth) * 1 / 2)
 		// the width of the 5d, 1d, and current price column
 		priceMovementColumnWidth := topTablesWidth - cmdtyColumnWidth
 		cmdtyTableColumns := []table.Column{
 			{Title: "Commodity", Width: cmdtyColumnWidth},
 			{Title: "1D", Width: int(float64(priceMovementColumnWidth) * 1 / 3)},
-			{Title: "5D", Width: int(float64(priceMovementColumnWidth) * 1 / 3)},
+			{Title: "7D", Width: int(float64(priceMovementColumnWidth) * 1 / 3)},
 			{Title: "Price", Width: int(float64(priceMovementColumnWidth) * 1 / 3)},
 		}
 
@@ -168,12 +169,36 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case scraping.CommodityUpdateMsg:
 		rows := []table.Row{}
 		for _, cmdty := range msg {
+			var color string
+			if cmdty.OneDayMovement >= 0 {
+				color = "#30FF1E"
+			} else {
+				color = "#FF211D"
+			}
+
+			style := lipgloss.NewStyle().Foreground(lipgloss.Color(color))
 			rows = append(rows, table.Row{
-				cmdty.Name, fmt.Sprintf("%.2f%%", cmdty.OneDayMovement), fmt.Sprintf("%.2f%%", cmdty.WeeklyMovement), fmt.Sprintf("%.2f", cmdty.Price),
+				// NOTE: Attempting to add color to other columns results in visual bug.
+				style.Render(cmdty.Name), fmt.Sprintf("%.2f%%", cmdty.OneDayMovement), fmt.Sprintf("%.2f%%", cmdty.WeeklyMovement), fmt.Sprintf("$%.2f", cmdty.Price),
 			})
 		}
 		d.tables[0].SetRows(rows)
 		log.Info("Got commodity data")
+		return d, scraping.CommodityUpdateTick()
+
+	case scraping.NewsUpdate:
+		log.Info("Got news update")
+
+		rows := []table.Row{}
+
+		for _, article := range msg {
+			rows = append(rows, table.Row{
+				article.Title,
+				article.Source,
+				article.PublicationDate.String(),
+			})
+		}
+		d.tables[2].SetRows(rows)
 	}
 
 	return d, cmd

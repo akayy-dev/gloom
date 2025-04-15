@@ -1,11 +1,12 @@
 package scraping
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/log"
 	"github.com/gocolly/colly"
 )
 
@@ -18,6 +19,12 @@ type Commodity struct {
 
 type CommodityUpdateMsg []Commodity
 
+func CommodityUpdateTick() tea.Cmd {
+	return tea.Tick(5*time.Second, func(t time.Time) tea.Msg {
+		return GetCommodities()
+	})
+}
+
 func GetCommodities() tea.Msg {
 	var cmdtyData []Commodity
 	// practice reading a news article
@@ -29,11 +36,11 @@ func GetCommodities() tea.Msg {
 	)
 
 	c.OnRequest(func(r *colly.Request) {
-		fmt.Println("Visiting", r.URL)
+		log.Info("Visiting", r.URL)
 	})
 
 	c.OnError(func(response *colly.Response, err error) {
-		fmt.Println("Something went wrong: ", err)
+		log.Fatal("Something went wrong: ", err)
 	})
 
 	c.OnHTML("tbody", func(e *colly.HTMLElement) {
