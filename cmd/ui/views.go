@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"math"
+	"time"
 
 	"gloomberg/internal/scraping"
 
@@ -192,10 +193,23 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		rows := []table.Row{}
 
 		for _, article := range msg {
+			// Format the publication date
+			var formattedTime string
+
+			year, month, day := article.PublicationDate.Date()
+			nowYear, nowMonth, nowDay := time.Now().Date()
+			if year == nowYear && month == nowMonth && day == nowDay {
+				// If the article was published today, format it as HH:MM AM/PM
+				formattedTime = article.PublicationDate.Format("03:04 PM")
+			} else {
+				// Otherwise, format it as MM/DD
+				formattedTime = article.PublicationDate.Format("01/02")
+			}
+
 			rows = append(rows, table.Row{
 				article.Title,
 				article.Source,
-				article.PublicationDate.String(),
+				formattedTime,
 			})
 		}
 		d.tables[2].SetRows(rows)

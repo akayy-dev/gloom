@@ -1,6 +1,7 @@
 package scraping
 
 import (
+	"sort"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -15,9 +16,11 @@ type NewsArticle struct {
 	PublicationDate time.Time
 	URL             string
 	Source          string
+	Content         string
 }
 
 func GetYahooNews() tea.Msg {
+	// NOTE: This technically could get news from any RSS url.
 	RSS_URL := "https://news.yahoo.com/rss/finance"
 
 	fp := feed.Parser{}
@@ -39,5 +42,10 @@ func GetYahooNews() tea.Msg {
 
 		articles = append(articles, article)
 	}
+
+	sort.Slice(articles, func(i, j int) bool {
+		return articles[i].PublicationDate.After(articles[j].PublicationDate)
+	})
+
 	return NewsUpdate(articles)
 }
