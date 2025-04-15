@@ -40,7 +40,6 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// run if key index is equal to key pressed (accounting for 0 index shift)
 			// TODO: Test if this actually preserves state.
 			if keyIndex, err := strconv.Atoi(msg.String()); err == nil && i+1 == keyIndex {
-				// m.activeTab = i
 				return m, func() tea.Msg { return TabChangeMsg(i) }
 			}
 		}
@@ -81,9 +80,7 @@ func (m MainModel) View() string {
 		}
 		b.WriteString(tabText)
 	}
-	// return b.String()
 	return lipgloss.JoinVertical(0, b.String(), tab.View())
-	// return tab.View()
 }
 
 func main() {

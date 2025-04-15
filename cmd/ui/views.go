@@ -1,7 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"math"
+
+	"gloomberg/internal/scraping"
 
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/lipgloss"
@@ -33,7 +36,7 @@ type Dashboard struct {
 }
 
 func (d *Dashboard) Init() tea.Cmd {
-	cmdtyTable := table.New(table.WithFocused(false))
+	cmdtyTable := table.New(table.WithFocused(true))
 
 	stockTable := table.New(table.WithFocused(false))
 
@@ -72,8 +75,9 @@ func (d *Dashboard) Init() tea.Cmd {
 		d.tables[i].SetStyles(d.unfocusedStyle.innerStyle)
 	}
 
-	d.tables[d.focused].Focus()
-	return nil
+	d.tables[0].Focus()
+
+	return scraping.GetCommodities
 }
 
 func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -131,7 +135,7 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "tab":
 			// unfocus currently focused table
-			// BUG: Table header background color does not fit full width of table.
+			// BUG: Can't scroll tables.
 			d.tables[d.focused].Blur()
 			if d.focused < len(d.tables)-1 {
 				d.tables[d.focused].SetStyles(d.unfocusedStyle.innerStyle)
@@ -158,6 +162,16 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			log.Infof("Focusing on table %v", d.focused)
 		}
+
+	case scraping.CommodityUpdateMsg:
+		rows := []table.Row{}
+		for _, cmdty := range msg {
+			rows = append(rows, table.Row{
+				cmdty.Name, fmt.Sprintf("%.2f%%", cmdty.OneDayMovement), fmt.Sprintf("%.2f%%", cmdty.WeeklyMovement), fmt.Sprintf("%.2f", cmdty.Price),
+			})
+		}
+		d.tables[0].SetRows(rows)
+		log.Info("Got commodity data")
 	}
 	return d, nil
 }
