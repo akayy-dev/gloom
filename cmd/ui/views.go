@@ -81,6 +81,7 @@ func (d *Dashboard) Init() tea.Cmd {
 }
 
 func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		d.width = msg.Width
@@ -105,17 +106,17 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		priceMovementColumnWidth := topTablesWidth - cmdtyColumnWidth
 		cmdtyTableColumns := []table.Column{
 			{Title: "Commodity", Width: cmdtyColumnWidth},
-			{Title: "1D", Width: int(float64(priceMovementColumnWidth) * .33)},
-			{Title: "5D", Width: int(float64(priceMovementColumnWidth) * .33)},
-			{Title: "Price", Width: int(float64(priceMovementColumnWidth) * .33)},
+			{Title: "1D", Width: int(float64(priceMovementColumnWidth) * 1 / 3)},
+			{Title: "5D", Width: int(float64(priceMovementColumnWidth) * 1 / 3)},
+			{Title: "Price", Width: int(float64(priceMovementColumnWidth) * 1 / 3)},
 		}
 
 		d.tables[0].SetColumns(cmdtyTableColumns)
 
 		stockColumns := []table.Column{
-			{Title: "Symbol", Width: int(float64(topTablesWidth) * .33)},
-			{Title: "1D", Width: int(float64(topTablesWidth) * .33)},
-			{Title: "Price", Width: int(float64(topTablesWidth) * .33)},
+			{Title: "Symbol", Width: int(float64(topTablesWidth) * 1 / 3)},
+			{Title: "1D", Width: int(float64(topTablesWidth) * 1 / 3)},
+			{Title: "Price", Width: int(float64(topTablesWidth) * 1 / 3)},
 		}
 
 		d.tables[1].SetColumns(stockColumns)
@@ -135,7 +136,7 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "tab":
 			// unfocus currently focused table
-			// BUG: Can't scroll tables.
+			// BUG: Can't fit everything into table
 			d.tables[d.focused].Blur()
 			if d.focused < len(d.tables)-1 {
 				d.tables[d.focused].SetStyles(d.unfocusedStyle.innerStyle)
@@ -162,6 +163,7 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			log.Infof("Focusing on table %v", d.focused)
 		}
+		d.tables[d.focused], cmd = d.tables[d.focused].Update(msg)
 
 	case scraping.CommodityUpdateMsg:
 		rows := []table.Row{}
@@ -173,7 +175,8 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		d.tables[0].SetRows(rows)
 		log.Info("Got commodity data")
 	}
-	return d, nil
+
+	return d, cmd
 }
 
 func (d *Dashboard) View() string {
