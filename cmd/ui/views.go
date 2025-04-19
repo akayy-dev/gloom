@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"gloomberg/internal/scraping"
@@ -182,11 +183,16 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// different actions depending on which table is focused
 			case 2:
 				selectedStory := d.tables[2].SelectedRow()
+
+				// get rid of nerd font book character
 				if selectedStory[3] == "1" {
 					content := selectedStory[5]
+
+					// get the story title without the unicode book character in front of it
+					titleString := strings.TrimLeft(selectedStory[0], " ")
 					log.Info("reading news story", "CONTENT", content)
 					newsOverlay := NewsModal{
-						title:   "News Article",
+						title:   string(titleString),
 						content: content,
 						w:       d.width / 2,
 						h:       int(float64(d.height) * .8),
