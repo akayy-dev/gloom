@@ -14,6 +14,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+type DisplayOverlayMsg tea.Model
+
 type TableStyle struct {
 	innerStyle table.Styles
 	outerStyle lipgloss.Style
@@ -79,7 +81,7 @@ func (d *Dashboard) Init() tea.Cmd {
 
 	d.tables[0].Focus()
 
-	return tea.Batch(scraping.GetCommodities, scraping.GetYahooNews, func() tea.Msg { return scraping.CommodityUpdateTick() })
+	return tea.Batch(scraping.GetCommodities, scraping.GetAllNews, func() tea.Msg { return scraping.CommodityUpdateTick() })
 }
 
 func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -116,9 +118,10 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		d.tables[0].SetColumns(cmdtyTableColumns)
 
 		stockColumns := []table.Column{
-			{Title: "Symbol", Width: int(float64(topTablesWidth) * 1 / 3)},
-			{Title: "1D", Width: int(float64(topTablesWidth) * 1 / 3)},
-			{Title: "Price", Width: int(float64(topTablesWidth) * 1 / 3)},
+			{Title: "Symbol", Width: int(float64(topTablesWidth) * 1 / 2)},
+			{Title: "7D", Width: int(float64(priceMovementColumnWidth) * 1 / 6)},
+			{Title: "1D", Width: int(float64(topTablesWidth) * 1 / 6)},
+			{Title: "Price", Width: int(float64(topTablesWidth) * 1 / 6)},
 		}
 
 		d.tables[1].SetColumns(stockColumns)
@@ -128,6 +131,9 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			{Title: "Headline", Width: int(math.Ceil(float64(newsTableWidth) * .75))},
 			{Title: "Source", Width: int(math.Ceil(float64(newsTableWidth) * .125))},
 			{Title: "Date", Width: int(math.Ceil(float64(newsTableWidth) * .125))},
+
+			// Data columns, don't actually show on the table, that's why their width is zero
+			{Title: "Content", Width: 0},
 		}
 
 		d.tables[2].SetColumns(newsColumns)
@@ -164,6 +170,27 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			d.tables[d.focused].SetStyles(d.focusedStyle.innerStyle)
 
 			log.Infof("Focusing on table %v", d.focused)
+
+		case "enter":
+			log.Info("enter pressed")
+
+			switch d.focused {
+			// different actions depending on which table is focused
+			case 2:
+				selectedStory := d.tables[2].SelectedRow()
+				content := selectedStory[3]
+				log.Info("reading news story", "CONTENT", content)
+				newsOverlay := NewsModal{
+					title:   "News Article",
+					content: content,
+					w:       d.width / 2,
+					h:       int(float64(d.height) * .8),
+				}
+
+				return d, func() tea.Msg { return (&newsOverlay) }
+			}
+		case "esc":
+			log.Info("Closed modal")
 		}
 		d.tables[d.focused], cmd = d.tables[d.focused].Update(msg)
 
@@ -206,10 +233,18 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				formattedTime = article.PublicationDate.Format("01/02")
 			}
 
+			var flaggedTitle string // the title with a flag to show whether or not it's readable
+			if article.Readable {
+				flaggedTitle = fmt.Sprintf("%s %s", "", article.Title)
+			} else {
+				flaggedTitle = article.Title
+			}
+
 			rows = append(rows, table.Row{
-				article.Title,
+				flaggedTitle,
 				article.Source,
 				formattedTime,
+				article.Content,
 			})
 		}
 		d.tables[2].SetRows(rows)
@@ -240,6 +275,7 @@ func (d *Dashboard) View() string {
 
 }
 
+// Economic Calendar Tab
 type EconomicCalendar struct {
 }
 
