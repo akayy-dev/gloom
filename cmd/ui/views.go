@@ -133,7 +133,11 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			{Title: "Date", Width: int(math.Ceil(float64(newsTableWidth) * .125))},
 
 			// Data columns, don't actually show on the table, that's why their width is zero
+			{Title: "Readable", Width: 0}, // empty if the article cannot be read.
+			{Title: "Title", Width: 0},
 			{Title: "Content", Width: 0},
+			{Title: "URL", Width: 0},
+			{Title: "Source", Width: 0},
 		}
 
 		d.tables[2].SetColumns(newsColumns)
@@ -178,19 +182,19 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// different actions depending on which table is focused
 			case 2:
 				selectedStory := d.tables[2].SelectedRow()
-				content := selectedStory[3]
-				log.Info("reading news story", "CONTENT", content)
-				newsOverlay := NewsModal{
-					title:   "News Article",
-					content: content,
-					w:       d.width / 2,
-					h:       int(float64(d.height) * .8),
+				if selectedStory[3] == "1" {
+					content := selectedStory[5]
+					log.Info("reading news story", "CONTENT", content)
+					newsOverlay := NewsModal{
+						title:   "News Article",
+						content: content,
+						w:       d.width / 2,
+						h:       int(float64(d.height) * .8),
+					}
+					return d, func() tea.Msg { return (&newsOverlay) }
 				}
 
-				return d, func() tea.Msg { return (&newsOverlay) }
 			}
-		case "esc":
-			log.Info("Closed modal")
 		}
 		d.tables[d.focused], cmd = d.tables[d.focused].Update(msg)
 
@@ -240,11 +244,25 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				flaggedTitle = article.Title
 			}
 
+			var readable string // 0 if not, 1 if so
+
+			if article.Readable {
+				readable = "1"
+			} else {
+				readable = "0"
+			}
+
 			rows = append(rows, table.Row{
 				flaggedTitle,
 				article.Source,
 				formattedTime,
+
+				// data columns
+				readable,
+				article.Title,
 				article.Content,
+				article.URL,
+				article.Source,
 			})
 		}
 		d.tables[2].SetRows(rows)
