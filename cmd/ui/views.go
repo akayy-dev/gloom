@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"gloomberg/internal/scraping"
+	"gloomberg/internal/stocks"
 
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/lipgloss"
@@ -82,7 +83,15 @@ func (d *Dashboard) Init() tea.Cmd {
 
 	d.tables[0].Focus()
 
-	return tea.Batch(scraping.GetCommodities, scraping.GetAllNews, func() tea.Msg { return scraping.CommodityUpdateTick() })
+	var watchlist []string
+	watchlist = append(watchlist, "SPY", "AAPL")
+	return tea.Batch(scraping.GetCommodities,
+		scraping.GetAllNews,
+		func() tea.Msg { return scraping.CommodityUpdateTick() },
+		// TODO: Find a way to dynamically get the tickers to search, perhaps a config file or
+		// database entry for user preferences?
+		func() tea.Msg { return stocks.GetCurrentOHLCV(watchlist) },
+	)
 }
 
 func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -272,6 +281,17 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			})
 		}
 		d.tables[2].SetRows(rows)
+
+	case stocks.OHLCVTickerUpdateMsg:
+		log.Info("Got stock data")
+		var rows []table.Row
+		for _, row := range msg {
+			rows = append(rows, table.Row{
+				row.Ticker, "", "", fmt.Sprintf("$%.2f", row.PrevClose),
+			})
+			log.Infof("Adding row for %s", row.Ticker)
+		}
+		d.tables[1].SetRows(rows)
 	}
 
 	return d, cmd
