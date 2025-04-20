@@ -35,7 +35,8 @@ func (n *NewsModal) View() string {
 		Border(lipgloss.NormalBorder()).
 		Padding(1, 1).
 		Width(n.w).
-		Height(n.h)
+		MaxHeight(n.h)
+		// Height(n.h)
 	// controlsDiv := lipgloss.NewStyle().
 	// 	Background(lipgloss.Color("#703FFD")).
 	// 	Foreground(lipgloss.Color("#FFFFFF")).
