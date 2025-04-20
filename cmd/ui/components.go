@@ -14,6 +14,8 @@ type NewsModal struct {
 	// width
 	w int
 	h int
+
+	renderer *lipgloss.Renderer
 }
 
 func (n *NewsModal) Init() tea.Cmd {
@@ -26,12 +28,12 @@ func (n *NewsModal) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (n *NewsModal) View() string {
 	// format and align text
-	titleStyle := lipgloss.NewStyle().
+	titleStyle := n.renderer.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("#703FFD")).
 		SetString(n.title)
 
-	divStyle := lipgloss.NewStyle().
+	divStyle := n.renderer.NewStyle().
 		Border(lipgloss.NormalBorder()).
 		Padding(1, 1).
 		Width(n.w).

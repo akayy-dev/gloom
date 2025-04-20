@@ -38,6 +38,8 @@ type Dashboard struct {
 	focusedStyle TableStyle
 	// focused style
 	unfocusedStyle TableStyle
+	// Rendering engine
+	renderer *lipgloss.Renderer
 }
 
 func (d *Dashboard) Init() tea.Cmd {
@@ -48,30 +50,30 @@ func (d *Dashboard) Init() tea.Cmd {
 	newsTable := table.New(table.WithFocused(false))
 
 	foucsedInnerStyle := table.Styles{
-		Header: lipgloss.NewStyle().
+		Header: d.renderer.NewStyle().
 			Align(lipgloss.Center).
 			Bold(true).
 			Foreground(lipgloss.Color("#FFFFFF")),
-		Cell:     lipgloss.NewStyle(),
-		Selected: lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFFF")),
+		Cell:     d.renderer.NewStyle(),
+		Selected: d.renderer.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFFF")),
 	}
 
 	unfocusedInnerStyle := table.Styles{
-		Header: lipgloss.NewStyle().
+		Header: d.renderer.NewStyle().
 			BorderForeground(lipgloss.Color("#703FFD")).
 			Bold(false),
-		Cell:     lipgloss.NewStyle(),
-		Selected: lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFF")),
+		Cell:     d.renderer.NewStyle(),
+		Selected: d.renderer.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFF")),
 	}
 
 	d.focusedStyle = TableStyle{
 		innerStyle: foucsedInnerStyle,
-		outerStyle: lipgloss.NewStyle().BorderForeground(lipgloss.Color("#703FFD")).Border(lipgloss.NormalBorder()),
+		outerStyle: d.renderer.NewStyle().BorderForeground(lipgloss.Color("#703FFD")).Border(lipgloss.NormalBorder()),
 	}
 
 	d.unfocusedStyle = TableStyle{
 		innerStyle: unfocusedInnerStyle,
-		outerStyle: lipgloss.NewStyle().BorderForeground(lipgloss.Color("#FFFFFF")).Border(lipgloss.NormalBorder()),
+		outerStyle: d.renderer.NewStyle().BorderForeground(lipgloss.Color("#FFFFFF")).Border(lipgloss.NormalBorder()),
 	}
 
 	d.tables = append(d.tables, cmdtyTable, stockTable, newsTable)
@@ -84,7 +86,7 @@ func (d *Dashboard) Init() tea.Cmd {
 	d.tables[0].Focus()
 
 	var watchlist []string
-	watchlist = append(watchlist, "SPY", "AAPL")
+	watchlist = append(watchlist, "SPY", "FEZ", "AAPL")
 	return tea.Batch(scraping.GetCommodities,
 		scraping.GetAllNews,
 		func() tea.Msg { return scraping.CommodityUpdateTick() },
@@ -201,10 +203,11 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					titleString := strings.TrimLeft(selectedStory[0], " ")
 					log.Info("reading news story", "CONTENT", content)
 					newsOverlay := NewsModal{
-						title:   string(titleString),
-						content: content,
-						w:       d.width / 2,
-						h:       int(float64(d.height) * .8),
+						title:    string(titleString),
+						content:  content,
+						w:        d.width / 2,
+						h:        int(float64(d.height) * .8),
+						renderer: d.renderer,
 					}
 					return d, func() tea.Msg { return (&newsOverlay) }
 				}
@@ -223,7 +226,7 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				color = "#FF211D"
 			}
 
-			style := lipgloss.NewStyle().Foreground(lipgloss.Color(color))
+			style := d.renderer.NewStyle().Foreground(lipgloss.Color(color))
 			rows = append(rows, table.Row{
 				// NOTE: Attempting to add color to other columns results in visual bug.
 				style.Render(cmdty.Name), fmt.Sprintf("%.2f%%", cmdty.OneDayMovement), fmt.Sprintf("%.2f%%", cmdty.WeeklyMovement), fmt.Sprintf("$%.2f", cmdty.Price),
@@ -298,8 +301,8 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (d *Dashboard) View() string {
-	foucsedBorder := lipgloss.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color("#703FFD"))
-	unfocusedBorder := lipgloss.NewStyle().Border(lipgloss.NormalBorder())
+	foucsedBorder := d.renderer.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color("#703FFD"))
+	unfocusedBorder := d.renderer.NewStyle().Border(lipgloss.NormalBorder())
 
 	var styledTables []string
 	for _, t := range d.tables {

@@ -27,3 +27,6 @@ go.work.sum
 
 # log files
 *.log
+
+# hide SSH related stuff
+.ssh/*

@@ -1,14 +1,26 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"io"
+	"net"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/log"
+	"github.com/charmbracelet/ssh"
+	"github.com/charmbracelet/wish"
+	"github.com/charmbracelet/wish/activeterm"
+	"github.com/charmbracelet/wish/bubbletea"
+	"github.com/charmbracelet/wish/logging"
 	overlay "github.com/rmhubbert/bubbletea-overlay"
 )
 
@@ -27,6 +39,8 @@ type MainModel struct {
 	overlayManager tea.Model
 	// whether or not an overlay is open
 	overlayOpen bool
+	// The renderer that gets passed down to the child models
+	renderer *lipgloss.Renderer
 }
 
 type TabChangeMsg int
@@ -107,7 +121,7 @@ func (m MainModel) View() string {
 	for i, t := range m.tabs {
 		var tabText string
 		if i == m.activeTab {
-			bg := lipgloss.NewStyle().Background(lipgloss.Color("#703FFD"))
+			bg := m.renderer.NewStyle().Background(lipgloss.Color("#703FFD"))
 			tabText = bg.Render(fmt.Sprintf(" (%d) %s ", i+1, t.name))
 		} else {
 			tabText = fmt.Sprintf(" (%d) %s ", i+1, t.name)
@@ -122,8 +136,71 @@ func (m MainModel) View() string {
 }
 
 func main() {
+	logFile, err := os.OpenFile("./debug.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	logOutput := io.MultiWriter(os.Stdout, logFile)
+
+	log.SetOutput(logOutput)
+	defer logFile.Close()
+
+	// SECTION: SSH Server setup
+	host := os.Getenv("SSH_HOST")
+	port := os.Getenv("SSH_PORT")
+
+	s, err := wish.NewServer(
+		wish.WithAddress(net.JoinHostPort(host, port)),
+		wish.WithHostKeyPath(".ssh/id_ed25519"),
+		wish.WithMiddleware(
+			bubbletea.Middleware(setupBubbleTea),
+			activeterm.Middleware(),
+			logging.Middleware(),
+		),
+	)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Done channel notifies when program is closed or killed
+	done := make(chan os.Signal, 1)
+	signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+
+	log.Info("Starting SSH Server", "Host", host, "Port", port)
+
+	go func() {
+		// Start SSH server and log if there is an error that causes the server to close
+		if err = s.ListenAndServe(); err != nil && errors.Is(err, ssh.ErrServerClosed) {
+			log.Error("Could not start server", "error", err)
+			done <- nil
+		}
+	}()
+
+	// Code below this only runs when the server is closed.
+	<-done
+
+	log.Info("Stopping SSH Server")
+	// give 30 seconds for ssh server to stop
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer func() { cancel() }()
+
+	if err := s.Shutdown(ctx); err != nil && errors.Is(err, ssh.ErrServerClosed) {
+		log.Error("Could not stop server", "error", err)
+	}
+}
+
+// Setup bubletea model to work with Wish
+func setupBubbleTea(s ssh.Session) (tea.Model, []tea.ProgramOption) {
+	// pty, _, _ := s.Pty()
+
+	// use instead of lipgloss.NewStyle()
+	renderer := bubbletea.MakeRenderer(s)
+
 	var dash tea.Model = &Dashboard{
-		name: "Dashboard A",
+		name:     "Dashboard A",
+		renderer: renderer,
 	}
 
 	var cal tea.Model = &EconomicCalendar{}
@@ -141,15 +218,8 @@ func main() {
 	m := MainModel{
 		tabs:      []*Tab{dashTab, calTab},
 		activeTab: 0,
+		renderer:  renderer,
 	}
 
-	f, err := os.OpenFile("./debug.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.SetOutput(f)
-	defer f.Close()
-
-	p := tea.NewProgram(m)
-	p.Run()
+	return m, []tea.ProgramOption{tea.WithAltScreen()}
 }
