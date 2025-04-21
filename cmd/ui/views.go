@@ -11,7 +11,6 @@ import (
 
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/log"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -38,8 +37,6 @@ type Dashboard struct {
 	focusedStyle TableStyle
 	// focused style
 	unfocusedStyle TableStyle
-	// Rendering engine
-	renderer *lipgloss.Renderer
 }
 
 func (d *Dashboard) Init() tea.Cmd {
@@ -50,30 +47,30 @@ func (d *Dashboard) Init() tea.Cmd {
 	newsTable := table.New(table.WithFocused(false))
 
 	foucsedInnerStyle := table.Styles{
-		Header: d.renderer.NewStyle().
+		Header: Renderer.NewStyle().
 			Align(lipgloss.Center).
 			Bold(true).
 			Foreground(lipgloss.Color("#FFFFFF")),
-		Cell:     d.renderer.NewStyle(),
-		Selected: d.renderer.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFFF")),
+		Cell:     Renderer.NewStyle(),
+		Selected: Renderer.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFFF")),
 	}
 
 	unfocusedInnerStyle := table.Styles{
-		Header: d.renderer.NewStyle().
+		Header: Renderer.NewStyle().
 			BorderForeground(lipgloss.Color("#703FFD")).
 			Bold(false),
-		Cell:     d.renderer.NewStyle(),
-		Selected: d.renderer.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFF")),
+		Cell:     Renderer.NewStyle(),
+		Selected: Renderer.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFF")),
 	}
 
 	d.focusedStyle = TableStyle{
 		innerStyle: foucsedInnerStyle,
-		outerStyle: d.renderer.NewStyle().BorderForeground(lipgloss.Color("#703FFD")).Border(lipgloss.NormalBorder()),
+		outerStyle: Renderer.NewStyle().BorderForeground(lipgloss.Color("#703FFD")).Border(lipgloss.NormalBorder()),
 	}
 
 	d.unfocusedStyle = TableStyle{
 		innerStyle: unfocusedInnerStyle,
-		outerStyle: d.renderer.NewStyle().BorderForeground(lipgloss.Color("#FFFFFF")).Border(lipgloss.NormalBorder()),
+		outerStyle: Renderer.NewStyle().BorderForeground(lipgloss.Color("#FFFFFF")).Border(lipgloss.NormalBorder()),
 	}
 
 	d.tables = append(d.tables, cmdtyTable, stockTable, newsTable)
@@ -172,7 +169,7 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			d.tables[d.focused].Focus()
 			d.tables[d.focused].SetStyles(d.focusedStyle.innerStyle)
 
-			log.Infof("Focusing on table %v", d.focused)
+			UserLog.Infof("Focusing on table %v", d.focused)
 		case "shift+tab":
 			d.tables[d.focused].Blur()
 			if d.focused > 0 {
@@ -185,10 +182,10 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			d.tables[d.focused].Focus()
 			d.tables[d.focused].SetStyles(d.focusedStyle.innerStyle)
 
-			log.Infof("Focusing on table %v", d.focused)
+			UserLog.Infof("Focusing on table %v", d.focused)
 
 		case "enter":
-			log.Info("enter pressed")
+			UserLog.Info("enter pressed")
 
 			switch d.focused {
 			// different actions depending on which table is focused
@@ -201,13 +198,12 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 					// get the story title without the unicode book character in front of it
 					titleString := strings.TrimLeft(selectedStory[0], " ")
-					log.Info("reading news story", "CONTENT", content)
+					UserLog.Info("reading news story", "CONTENT", content)
 					newsOverlay := NewsModal{
-						title:    string(titleString),
-						content:  content,
-						w:        d.width / 2,
-						h:        int(float64(d.height) * .8),
-						renderer: d.renderer,
+						title:   string(titleString),
+						content: content,
+						w:       d.width / 2,
+						h:       int(float64(d.height) * .8),
 					}
 					return d, func() tea.Msg { return (&newsOverlay) }
 				}
@@ -226,18 +222,18 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				color = "#FF211D"
 			}
 
-			style := d.renderer.NewStyle().Foreground(lipgloss.Color(color))
+			style := Renderer.NewStyle().Foreground(lipgloss.Color(color))
 			rows = append(rows, table.Row{
 				// NOTE: Attempting to add color to other columns results in visual bug.
 				style.Render(cmdty.Name), fmt.Sprintf("%.2f%%", cmdty.OneDayMovement), fmt.Sprintf("%.2f%%", cmdty.WeeklyMovement), fmt.Sprintf("$%.2f", cmdty.Price),
 			})
 		}
 		d.tables[0].SetRows(rows)
-		log.Info("Got commodity data")
+		UserLog.Info("Got commodity data")
 		return d, scraping.CommodityUpdateTick()
 
 	case scraping.NewsUpdate:
-		log.Info("Got news update")
+		UserLog.Info("Got news update")
 
 		rows := []table.Row{}
 
@@ -286,13 +282,13 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		d.tables[2].SetRows(rows)
 
 	case stocks.OHLCVTickerUpdateMsg:
-		log.Info("Got stock data")
+		UserLog.Info("Got stock data")
 		var rows []table.Row
 		for _, row := range msg {
 			rows = append(rows, table.Row{
 				row.Ticker, "", "", fmt.Sprintf("$%.2f", row.PrevClose),
 			})
-			log.Infof("Adding row for %s", row.Ticker)
+			UserLog.Infof("Adding row for %s", row.Ticker)
 		}
 		d.tables[1].SetRows(rows)
 	}
@@ -301,8 +297,8 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (d *Dashboard) View() string {
-	foucsedBorder := d.renderer.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color("#703FFD"))
-	unfocusedBorder := d.renderer.NewStyle().Border(lipgloss.NormalBorder())
+	foucsedBorder := Renderer.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color("#703FFD"))
+	unfocusedBorder := Renderer.NewStyle().Border(lipgloss.NormalBorder())
 
 	var styledTables []string
 	for _, t := range d.tables {

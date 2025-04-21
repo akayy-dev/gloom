@@ -24,6 +24,13 @@ import (
 	overlay "github.com/rmhubbert/bubbletea-overlay"
 )
 
+var (
+	// Logging for user activities
+	UserLog *log.Logger
+	// Renderer for creating new styles
+	Renderer *lipgloss.Renderer
+)
+
 type Tab struct {
 	name  string
 	model tea.Model
@@ -39,8 +46,6 @@ type MainModel struct {
 	overlayManager tea.Model
 	// whether or not an overlay is open
 	overlayOpen bool
-	// The renderer that gets passed down to the child models
-	renderer *lipgloss.Renderer
 }
 
 type TabChangeMsg int
@@ -75,11 +80,11 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "Q":
 			fallthrough
 		case "q":
-			log.Info("Exiting on user request")
+			UserLog.Info("Exiting on user request")
 			return m, tea.Quit
 		case "esc":
 			if m.overlayOpen {
-				log.Info("Exiting overlay")
+				UserLog.Info("Exiting overlay")
 				m.overlayOpen = false
 			}
 		}
@@ -89,7 +94,7 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.ClearScreen
 
 	case TabChangeMsg:
-		log.Infof("Switching to view tabs[%d]", int(msg))
+		UserLog.Infof("Switching to view tabs[%d]", int(msg))
 		m.activeTab = int(msg)
 
 	case DisplayOverlayMsg:
@@ -97,7 +102,7 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// NOTE: The code for pressing escape to exit the overlay
 		//  is in the keypress part of this switch statement
 		if !m.overlayOpen {
-			log.Info("displaying news overlay")
+			UserLog.Info("displaying news overlay")
 			m.overlayManager = overlay.New(msg, m, overlay.Center, overlay.Center, 0, 0)
 			m.overlayOpen = true
 		}
@@ -121,7 +126,7 @@ func (m MainModel) View() string {
 	for i, t := range m.tabs {
 		var tabText string
 		if i == m.activeTab {
-			bg := m.renderer.NewStyle().Background(lipgloss.Color("#703FFD"))
+			bg := Renderer.NewStyle().Background(lipgloss.Color("#703FFD"))
 			tabText = bg.Render(fmt.Sprintf(" (%d) %s ", i+1, t.name))
 		} else {
 			tabText = fmt.Sprintf(" (%d) %s ", i+1, t.name)
@@ -193,14 +198,55 @@ func main() {
 
 // Setup bubletea model to work with Wish
 func setupBubbleTea(s ssh.Session) (tea.Model, []tea.ProgramOption) {
+	userString := fmt.Sprintf("%s.%s", s.User(), strings.Split(s.RemoteAddr().String(), ":")[0])
+	log.Infof("Connection from %s", userString)
 	// pty, _, _ := s.Pty()
 
 	// use instead of lipgloss.NewStyle()
-	renderer := bubbletea.MakeRenderer(s)
+	Renderer = bubbletea.MakeRenderer(s)
+
+	// CREATE USER LOGGER
+	/* BUG: File closes after function ends,
+	making logging impossible after end of function
+	Need to make a cleanup function that runs when the server closes,
+	can be handled in the main function if we make the file a global variable.
+	*/
+
+	logTimeStamp := time.Now().Format("01.02.2006 15:04 MST")
+	log.Info(logTimeStamp)
+
+	// Make the logs directory if it doesn't exist yet.
+	if err := os.MkdirAll("./logs", 0755); err != nil {
+		log.Error("Cannot create logs directory", "error", err)
+	}
+
+	f, err := os.OpenFile(
+		fmt.Sprintf("./logs/%s %s.log",
+			userString,
+			logTimeStamp,
+		),
+		os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+
+	if err != nil {
+		log.Error("Cannot create log file", err)
+	}
+
+	UserLog = log.New(f)
+	// NOTE: Setting time format doesn't work, figure out how to fix this later.
+	UserLog.SetTimeFormat("2006/01/02 15:04:05")
+	UserLog.Info("User log created")
+
+	// This function runs on
+	go func() {
+		<-s.Context().Done()
+		UserLog.Info("Connection closed, ending file.")
+		if err := f.Close(); err != nil {
+			log.Error("Error closing log file", "error", err)
+		}
+	}()
 
 	var dash tea.Model = &Dashboard{
-		name:     "Dashboard A",
-		renderer: renderer,
+		name: "Dashboard A",
 	}
 
 	var cal tea.Model = &EconomicCalendar{}
@@ -218,7 +264,6 @@ func setupBubbleTea(s ssh.Session) (tea.Model, []tea.ProgramOption) {
 	m := MainModel{
 		tabs:      []*Tab{dashTab, calTab},
 		activeTab: 0,
-		renderer:  renderer,
 	}
 
 	return m, []tea.ProgramOption{tea.WithAltScreen()}
