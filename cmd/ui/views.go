@@ -213,6 +213,7 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		d.tables[d.focused], cmd = d.tables[d.focused].Update(msg)
 
 	case scraping.CommodityUpdateMsg:
+		UserLog.Info("Commodity Data Recieved")
 		rows := []table.Row{}
 		for _, cmdty := range msg {
 			var color string
@@ -286,7 +287,7 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var rows []table.Row
 		for _, row := range msg {
 			rows = append(rows, table.Row{
-				row.Ticker, "", "", fmt.Sprintf("$%.2f", row.PrevClose),
+				row.Ticker, "", "", fmt.Sprintf("$%.2f", row.TngoLast),
 			})
 			UserLog.Infof("Adding row for %s", row.Ticker)
 		}
