@@ -26,6 +26,11 @@ func CommodityUpdateTick() tea.Cmd {
 }
 
 func GetCommodities() tea.Msg {
+	// How many times we have retried to get the data
+	retries := 0
+	// Maximum amount of retries allowed
+	maxRetries := 3
+
 	var cmdtyData []Commodity
 	// practice reading a news article
 	URL := "https://tradingeconomics.com/commodities"
@@ -39,8 +44,23 @@ func GetCommodities() tea.Msg {
 		log.Info("Visiting", r.URL)
 	})
 
+	// Rate Limiting
+	c.Limit(&colly.LimitRule{
+		DomainGlob:  "*",
+		Parallelism: 2,
+		Delay:       1 * time.Second,
+		RandomDelay: 500 * time.Millisecond,
+	})
+
 	c.OnError(func(response *colly.Response, err error) {
-		log.Fatal("Something went wrong: ", err)
+
+		if retries < maxRetries {
+			retries++
+			log.Warnf("Retry %d/%d: %v", retries, maxRetries, err)
+			response.Request.Retry()
+		} else {
+			log.Error("Something went wrong: ", err)
+		}
 	})
 
 	c.OnHTML("tbody", func(e *colly.HTMLElement) {

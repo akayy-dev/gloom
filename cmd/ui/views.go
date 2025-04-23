@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"math"
-	"strings"
+	"strconv"
 	"time"
 
 	"gloomberg/internal/scraping"
@@ -11,6 +11,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/log"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -37,11 +38,17 @@ type Dashboard struct {
 	focusedStyle TableStyle
 	// focused style
 	unfocusedStyle TableStyle
+	// map the row in the table to an actual news article
+	articleMap map[int]scraping.NewsArticle
 }
 
 func (d *Dashboard) Init() tea.Cmd {
-	cmdtyTable := table.New(table.WithFocused(false))
+	// make article map
+	d.articleMap = make(map[int]scraping.NewsArticle)
 
+	cmdtyTable := table.New(
+		table.WithFocused(false),
+	)
 	stockTable := table.New(table.WithFocused(false))
 
 	newsTable := table.New(table.WithFocused(false))
@@ -65,7 +72,9 @@ func (d *Dashboard) Init() tea.Cmd {
 
 	d.focusedStyle = TableStyle{
 		innerStyle: foucsedInnerStyle,
-		outerStyle: Renderer.NewStyle().BorderForeground(lipgloss.Color("#703FFD")).Border(lipgloss.NormalBorder()),
+		outerStyle: Renderer.NewStyle().
+			BorderForeground(lipgloss.Color("#703FFD")).
+			Border(lipgloss.NormalBorder()),
 	}
 
 	d.unfocusedStyle = TableStyle{
@@ -141,12 +150,7 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			{Title: "Source", Width: int(math.Ceil(float64(newsTableWidth) * .125))},
 			{Title: "Date", Width: int(math.Ceil(float64(newsTableWidth) * .125))},
 
-			// Data columns, don't actually show on the table, that's why their width is zero
-			{Title: "Readable", Width: 0}, // empty if the article cannot be read.
-			{Title: "Title", Width: 0},
-			{Title: "Content", Width: 0},
-			{Title: "URL", Width: 0},
-			{Title: "Source", Width: 0},
+			{Title: "index", Width: 0},
 		}
 
 		d.tables[2].SetColumns(newsColumns)
@@ -190,18 +194,19 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch d.focused {
 			// different actions depending on which table is focused
 			case 2:
-				selectedStory := d.tables[2].SelectedRow()
-
-				// get rid of nerd font book character
-				if selectedStory[3] == "1" {
-					content := selectedStory[5]
-
+				rowID, err := strconv.Atoi(d.tables[2].SelectedRow()[3])
+				if err != nil {
+					log.Fatal(err)
+				}
+				selectedStory := d.articleMap[rowID]
+				if selectedStory.Readable {
 					// get the story title without the unicode book character in front of it
-					titleString := strings.TrimLeft(selectedStory[0], " ")
-					UserLog.Info("reading news story", "CONTENT", content)
+					titleString := selectedStory.Title
+					UserLog.Info("reading news story", "CONTENT", selectedStory.Content)
 					newsOverlay := NewsModal{
-						title:   string(titleString),
-						content: content,
+						title: string(titleString),
+						// TODO: Check if readable, and if not scrape website with AI.
+						content: selectedStory.Content,
 						w:       d.width / 2,
 						h:       int(float64(d.height) * .8),
 					}
@@ -238,7 +243,7 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		rows := []table.Row{}
 
-		for _, article := range msg {
+		for i, article := range msg {
 			// Format the publication date
 			var formattedTime string
 
@@ -259,26 +264,16 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				flaggedTitle = article.Title
 			}
 
-			var readable string // 0 if not, 1 if so
-
-			if article.Readable {
-				readable = "1"
-			} else {
-				readable = "0"
-			}
-
-			rows = append(rows, table.Row{
+			newsRow := table.Row{
 				flaggedTitle,
 				article.Source,
 				formattedTime,
+				strconv.Itoa(i), // index in articleMap (as a string)
+			}
 
-				// data columns
-				readable,
-				article.Title,
-				article.Content,
-				article.URL,
-				article.Source,
-			})
+			d.articleMap[i] = article
+
+			rows = append(rows, newsRow)
 		}
 		d.tables[2].SetRows(rows)
 
