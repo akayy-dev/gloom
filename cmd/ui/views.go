@@ -203,21 +203,23 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if selectedStory.Readable {
 					// get the story title without the unicode book character in front of it
 					newsOverlay = NewsModal{
-						title: selectedStory.Title,
-						// TODO: Check if readable, and if not scrape website with AI.
+						title:   selectedStory.Title,
 						content: selectedStory.Content,
 						w:       d.width / 2,
 						h:       int(float64(d.height) * .8),
 					}
 					return d, func() tea.Msg { return (&newsOverlay) }
 				} else {
+					newsContent := scraping.PromptNewsURL(selectedStory)
+					log.Info("Showing scraped news")
 					newsOverlay = NewsModal{
 						title: selectedStory.Title,
 						// TODO: Check if readable, and if not scrape website with AI.
-						content: scraping.PromptNewsURL(selectedStory),
 						w:       d.width / 2,
 						h:       int(float64(d.height) * .8),
+						content: newsContent,
 					}
+					return d, func() tea.Msg { return (&newsOverlay) }
 
 				}
 

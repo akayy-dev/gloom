@@ -47,9 +47,15 @@ func PromptNewsURL(article NewsArticle) string {
 	model.ResponseMIMEType = "application/json"
 
 	log.Infof("Scraping content from %s", article.URL)
-	htmlSrc, err := http.Get(article.URL)
+
+	htmlReq, err := http.NewRequest("GET", article.URL, nil)
 	if err != nil {
-		log.Errorf("Error while scraping article: %s", err)
+		log.Errorf("Error while creating http request: %s", err)
+	}
+	htmlReq.Header.Add("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.182 Safari/537.36")
+	htmlSrc, err := http.DefaultClient.Do(htmlReq)
+	if err != nil {
+		log.Errorf("Error while getting article: %s", err)
 	}
 	defer htmlSrc.Body.Close()
 
@@ -74,6 +80,11 @@ func PromptNewsURL(article NewsArticle) string {
 		`),
 	}
 
+	type GeminiResponse struct {
+		Success bool   `json:"success"`
+		Content string `json:"content"`
+	}
+
 	log.Info("Sending bytedata to gemini")
 	resp, err := model.GenerateContent(ctx, req...)
 	if err != nil {
@@ -81,14 +92,21 @@ func PromptNewsURL(article NewsArticle) string {
 	}
 
 	// TODO: Marshal the JSON response to a struct and return an article update message.
-	for _, c := range resp.Candidates {
-		if c.Content != nil {
-			log.Info(*c.Content)
+	var response GeminiResponse
+	for _, part := range resp.Candidates[0].Content.Parts {
+		if txt, ok := part.(genai.Text); ok {
+			if err := json.Unmarshal([]byte(txt), &response); err != nil {
+				log.Error(err)
+				log.Info(txt)
+			}
+			if response.Success {
+				return response.Content
+			} else {
+				return "Unable to parse article."
+			}
 		}
 	}
-	log.Info("Finished talking to AI")
-	return "wait"
-
+	return response.Content
 }
 
 func GetAllNews() tea.Msg {
