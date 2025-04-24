@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -36,13 +34,13 @@ func (n *NewsModal) View() string {
 		Padding(1, 1).
 		Width(n.w).
 		MaxHeight(n.h)
-		// Height(n.h)
-	// controlsDiv := lipgloss.NewStyle().
-	// 	Background(lipgloss.Color("#703FFD")).
-	// 	Foreground(lipgloss.Color("#FFFFFF")).
-	// 	SetString("<ESC> Close window")
+	controlsDiv := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#FFFFFF")).
+		Align(lipgloss.Right).
+		Width(n.w - 2).
+		SetString(lipgloss.NewStyle().Background(lipgloss.Color("#703FFD")).Padding(0, 1).Render("<ESC> Go Back"))
 
-	renderedString := fmt.Sprintf("%s\n%s", titleStyle.Render(), n.content)
+	renderedString := lipgloss.JoinVertical(lipgloss.Top, titleStyle.Render(), n.content, controlsDiv.Render())
 
 	return divStyle.Render(renderedString)
 }

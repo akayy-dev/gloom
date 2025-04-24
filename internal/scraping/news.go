@@ -2,9 +2,11 @@ package scraping
 
 import (
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -12,6 +14,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/log"
 	feed "github.com/mmcdole/gofeed"
+
+	"github.com/google/generative-ai-go/genai"
+	"google.golang.org/api/option"
 )
 
 type NewsUpdate []NewsArticle
@@ -23,6 +28,67 @@ type NewsArticle struct {
 	Source          string
 	Readable        bool
 	Content         string
+}
+
+// Use AI to scrape the content off an articles page.
+// NOTE: Currently returns a too many requests error on a lot of yahoo finance articles.
+// my buest guess as to why this happens is because http.Get is just a curl wrapper, and without
+// a proper user agent yahoo blocks requests. the solution to this is to migrate to colly.
+func PromptNewsURL(article NewsArticle) string {
+	ctx := context.Background()
+	client, err := genai.NewClient(ctx, option.WithAPIKey(os.Getenv("GEMINI_KEY")))
+
+	if err != nil {
+		log.Errorf("Error while creating Gemini Client: %s", err)
+	}
+
+	defer client.Close()
+	model := client.GenerativeModel("gemini-2.0-flash-lite")
+	model.ResponseMIMEType = "application/json"
+
+	log.Infof("Scraping content from %s", article.URL)
+	htmlSrc, err := http.Get(article.URL)
+	if err != nil {
+		log.Errorf("Error while scraping article: %s", err)
+	}
+	defer htmlSrc.Body.Close()
+
+	log.Info("Reading bytes from article")
+	htmlBytes, err := io.ReadAll(htmlSrc.Body)
+	if err != nil {
+		log.Errorf("Error encountered while reading HTML content: %s", err)
+	}
+
+	// start the gemini request
+	req := []genai.Part{
+		genai.Blob{MIMEType: "text/html", Data: htmlBytes},
+		genai.Text(`
+		You are a helpful AI assistant for webscraping.
+		 I will send you the HTML content of an news website, your job is to convert the article from HTML to markdown.
+		 Make sure you ONLY format the article, do not format the advertisements on the page or any of the article suggestions.
+		Format your responses in JSON like this:
+		{
+			'success': true // whether or not you were able to successfully access and scrape the articles full contents
+			'content': <CONTENT> // the content of the article in a string
+		}
+		`),
+	}
+
+	log.Info("Sending bytedata to gemini")
+	resp, err := model.GenerateContent(ctx, req...)
+	if err != nil {
+		log.Error("Error while generating content: %s", err)
+	}
+
+	// TODO: Marshal the JSON response to a struct and return an article update message.
+	for _, c := range resp.Candidates {
+		if c.Content != nil {
+			log.Info(*c.Content)
+		}
+	}
+	log.Info("Finished talking to AI")
+	return "wait"
+
 }
 
 func GetAllNews() tea.Msg {

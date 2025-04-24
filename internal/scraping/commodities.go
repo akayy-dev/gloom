@@ -41,7 +41,7 @@ func GetCommodities() tea.Msg {
 	)
 
 	c.OnRequest(func(r *colly.Request) {
-		log.Info("Visiting", r.URL)
+		log.Infof("Getting commodities from %s", r.URL)
 	})
 
 	// Rate Limiting

@@ -195,22 +195,30 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// different actions depending on which table is focused
 			case 2:
 				rowID, err := strconv.Atoi(d.tables[2].SelectedRow()[3])
+				var newsOverlay NewsModal
 				if err != nil {
 					log.Fatal(err)
 				}
 				selectedStory := d.articleMap[rowID]
 				if selectedStory.Readable {
 					// get the story title without the unicode book character in front of it
-					titleString := selectedStory.Title
-					UserLog.Info("reading news story", "CONTENT", selectedStory.Content)
-					newsOverlay := NewsModal{
-						title: string(titleString),
+					newsOverlay = NewsModal{
+						title: selectedStory.Title,
 						// TODO: Check if readable, and if not scrape website with AI.
 						content: selectedStory.Content,
 						w:       d.width / 2,
 						h:       int(float64(d.height) * .8),
 					}
 					return d, func() tea.Msg { return (&newsOverlay) }
+				} else {
+					newsOverlay = NewsModal{
+						title: selectedStory.Title,
+						// TODO: Check if readable, and if not scrape website with AI.
+						content: scraping.PromptNewsURL(selectedStory),
+						w:       d.width / 2,
+						h:       int(float64(d.height) * .8),
+					}
+
 				}
 
 			}
