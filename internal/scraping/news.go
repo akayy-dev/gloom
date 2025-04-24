@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -28,6 +29,14 @@ type NewsArticle struct {
 	Source          string
 	Readable        bool
 	Content         string
+}
+
+// Sanitize json to be properly marsalled
+func sanitizeJSON(input []byte) []byte {
+	// Replace unescaped " with escaped ones within JSON strings
+	re := regexp.MustCompile(`(?m)([^\\])\\([^"\\/bfnrt]|$)`)
+	fixed := re.ReplaceAll(input, []byte(`${1}\\\\${2}`))
+	return fixed
 }
 
 // Use AI to scrape the content off an articles page.
@@ -74,8 +83,8 @@ func PromptNewsURL(article NewsArticle) string {
 		 Make sure you ONLY format the article, do not format the advertisements on the page or any of the article suggestions.
 		Format your responses in JSON like this:
 		{
-			'success': true // whether or not you were able to successfully access and scrape the articles full contents
-			'content': <CONTENT> // the content of the article in a string
+			"success": true // whether or not you were able to successfully access and scrape the articles full contents
+			"content": <CONTENT> // the content of the article in a string
 		}
 		`),
 	}
@@ -95,7 +104,8 @@ func PromptNewsURL(article NewsArticle) string {
 	var response GeminiResponse
 	for _, part := range resp.Candidates[0].Content.Parts {
 		if txt, ok := part.(genai.Text); ok {
-			if err := json.Unmarshal([]byte(txt), &response); err != nil {
+			sanitized := sanitizeJSON([]byte(txt))
+			if err := json.Unmarshal(sanitized, &response); err != nil {
 				log.Error(err)
 				log.Info(txt)
 			}

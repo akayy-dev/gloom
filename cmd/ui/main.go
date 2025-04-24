@@ -43,7 +43,7 @@ type MainModel struct {
 	// index of active tab in the list
 	activeTab int
 	// model responsible for showing overlay and contents "underneath" it
-	overlayManager tea.Model
+	overlayManager *overlay.Model
 	// whether or not an overlay is open
 	overlayOpen bool
 }
@@ -66,6 +66,10 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// BUG: When attempting to switch tabs with an ovelay open, nothing will hapen,
 		// but when the user closes the modal, then the tab will switch.
 		_, cmd = tab.Update(msg)
+	} else {
+		// Send updates to the foreground if it's open.
+		// NOTE: Did not think this through, so bugs might show up.
+		m.overlayManager.Foreground.Update(msg)
 	}
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -104,6 +108,7 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if !m.overlayOpen {
 			UserLog.Info("displaying news overlay")
 			m.overlayManager = overlay.New(msg, m, overlay.Center, overlay.Center, 0, 0)
+			m.overlayManager.Foreground.Init()
 			m.overlayOpen = true
 		}
 	}
