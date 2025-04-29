@@ -22,7 +22,9 @@ import (
 	"github.com/charmbracelet/wish"
 	"github.com/charmbracelet/wish/activeterm"
 	"github.com/charmbracelet/wish/bubbletea"
+	bm "github.com/charmbracelet/wish/bubbletea"
 	"github.com/charmbracelet/wish/logging"
+	"github.com/muesli/termenv"
 	overlay "github.com/rmhubbert/bubbletea-overlay"
 )
 
@@ -31,6 +33,8 @@ var (
 	UserLog *log.Logger
 	// Renderer for creating new styles
 	Renderer *lipgloss.Renderer
+	// The program for bubbleatea, use this to manually send updates
+	Program *tea.Program
 )
 
 type Tab struct {
@@ -169,7 +173,7 @@ func main() {
 		wish.WithAddress(net.JoinHostPort(host, port)),
 		wish.WithHostKeyPath(".ssh/id_ed25519"),
 		wish.WithMiddleware(
-			bubbletea.Middleware(setupBubbleTea),
+			bubbleteaMiddleware(),
 			activeterm.Middleware(),
 			logging.Middleware(),
 		),
@@ -206,8 +210,26 @@ func main() {
 	}
 }
 
+// Custom middleware for bubbletea, sets the Program variable.
+func bubbleteaMiddleware() wish.Middleware {
+	log.Info("Starting middleware")
+	newProg := func(m tea.Model, opts []tea.ProgramOption) *tea.Program {
+		p := tea.NewProgram(m, opts...)
+		Program = p
+		return p
+	}
+	log.Info("bubbletea program created")
+	teaHandler := func(s ssh.Session) *tea.Program {
+		return newProg(setupBubbleTea(s))
+	}
+
+	return bm.MiddlewareWithProgramHandler(teaHandler, termenv.Ascii)
+
+}
+
 // Setup bubletea model to work with Wish
 func setupBubbleTea(s ssh.Session) (tea.Model, []tea.ProgramOption) {
+	log.Info("setupBubbleTea")
 	userString := fmt.Sprintf("%s.%s", s.User(), strings.Split(s.RemoteAddr().String(), ":")[0])
 	log.Infof("Connection from %s", userString)
 	// pty, _, _ := s.Pty()
@@ -276,5 +298,5 @@ func setupBubbleTea(s ssh.Session) (tea.Model, []tea.ProgramOption) {
 		activeTab: 0,
 	}
 
-	return m, []tea.ProgramOption{tea.WithAltScreen()}
+	return m, []tea.ProgramOption{tea.WithAltScreen(), tea.WithInput(s), tea.WithOutput(s)}
 }
