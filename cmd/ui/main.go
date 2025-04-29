@@ -1,5 +1,7 @@
 package main
 
+// Comment for git diff
+
 import (
 	"context"
 	"errors"
@@ -35,6 +37,8 @@ type Tab struct {
 	name  string
 	model tea.Model
 }
+
+type ModalCloseMsg bool
 
 // The "entry" model.
 type MainModel struct {
@@ -89,6 +93,7 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "esc":
 			if m.overlayOpen {
 				UserLog.Info("Exiting overlay")
+				m.overlayManager.Foreground.Update(ModalCloseMsg(true))
 				m.overlayOpen = false
 			}
 		}
@@ -108,8 +113,8 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if !m.overlayOpen {
 			UserLog.Info("displaying news overlay")
 			m.overlayManager = overlay.New(msg, m, overlay.Center, overlay.Center, 0, 0)
-			m.overlayManager.Foreground.Init()
 			m.overlayOpen = true
+			cmd = m.overlayManager.Foreground.Init() // so commands returned from the overlay on init run
 		}
 	}
 
