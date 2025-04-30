@@ -77,7 +77,7 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	} else {
 		// Send updates to the foreground if it's open.
 		// NOTE: Did not think this through, so bugs might show up.
-		m.overlayManager.Foreground.Update(msg)
+		_, cmd = m.overlayManager.Foreground.Update(msg)
 	}
 	switch msg := msg.(type) {
 	case tea.KeyMsg:

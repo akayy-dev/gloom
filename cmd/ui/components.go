@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"gloomberg/internal/scraping"
+	"time"
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -42,21 +43,17 @@ type NewsModal struct {
 }
 
 // begin newsscraping
-func scrapeNews(article *scraping.NewsArticle, status *chan int, ctx *context.Context) tea.Cmd {
+func scrapeNews(article *scraping.NewsArticle, status *chan int, ctx context.Context) tea.Cmd {
 	log.Info("scrapeNews CMD")
 	return func() tea.Msg {
 		UserLog.Info("scrapeNews Cmd run")
-		scraping.PromptNewsURL(article, status, ctx)
-		return UpdateStatusMsg(0)
-	}
-}
-
-// Listen for gemini scraping protocol updates
-func listenForNews(status *chan int) tea.Cmd {
-	UserLog.Info("listenForNews Cmd run")
-	return func() tea.Msg {
-		code := <-*status
-		return UpdateStatusMsg(code)
+		go func() {
+			for progress := range *status {
+				Program.Send(UpdateStatusMsg(progress))
+			}
+		}()
+		go scraping.PromptNewsURL(article, status, ctx) // needs to run in it's own routine for listen to workk
+		return nil
 	}
 }
 
@@ -98,10 +95,12 @@ func (n *NewsModal) Init() tea.Cmd {
 		n.loading = true
 		n.progressChan = make(chan int)
 
-		n.newsCtx, n.newsCtxCancel = context.WithCancel(context.Background())
+		var ctx context.Context
+		ctx, n.newsCtxCancel = context.WithCancel(context.Background())
+		n.newsCtx, n.newsCtxCancel = context.WithTimeout(ctx, 30*time.Second)
+
 		return tea.Batch(
-			scrapeNews(n.article, &n.progressChan, &n.newsCtx),
-			listenForNews(&n.progressChan),
+			scrapeNews(n.article, &n.progressChan, n.newsCtx),
 		)
 
 	} else {
@@ -156,17 +155,19 @@ func (n *NewsModal) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case 1:
 			statusMsg = "󰖟 Requesting article data"
 		case 2:
-			statusMsg = " Converting article to HTML file"
+			statusMsg = "󰇚 Downloading article"
 		case 3:
 			statusMsg = " Scraping text from article"
 		case 4:
-			statusMsg = " Done"
+			statusMsg = " Done"
+			UserLog.Info(statusMsg)
+			// BUG: This isn't working, UI gets stuck on "scraping" message.
+			// No idea why
 			return n, func() tea.Msg { return UpdateContentMsg(*n.article) }
 		}
 
 		n.statusMessage = statusMsg
 		UserLog.Info(statusMsg)
-		return n, listenForNews(&n.progressChan)
 	}
 	n.vp, cmd = n.vp.Update(msg)
 	return n, cmd

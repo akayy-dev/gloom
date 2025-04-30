@@ -4,6 +4,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"os"
@@ -49,8 +50,8 @@ func sanitizeJSON(input []byte) []byte {
 // NOTE: Currently returns a too many requests error on a lot of yahoo finance articles.
 // my buest guess as to why this happens is because http.Get is just a curl wrapper, and without
 // a proper user agent yahoo blocks requests. the solution to this is to migrate to colly.
-func PromptNewsURL(article *NewsArticle, progressChan *chan int, ctx *context.Context) {
-	client, err := genai.NewClient(*ctx, option.WithAPIKey(os.Getenv("GEMINI_KEY")))
+func PromptNewsURL(article *NewsArticle, progressChan *chan int, ctx context.Context) {
+	client, err := genai.NewClient(ctx, option.WithAPIKey(os.Getenv("GEMINI_KEY")))
 
 	if err != nil {
 		log.Errorf("Error while creating Gemini Client: %s", err)
@@ -63,7 +64,7 @@ func PromptNewsURL(article *NewsArticle, progressChan *chan int, ctx *context.Co
 
 	(*progressChan) <- 0
 
-	log.Infof("Scraping content from %s", article.URL)
+	log.Infof("Requesting content from %s", article.URL)
 
 	htmlReq, err := http.NewRequest("GET", article.URL, nil)
 	if err != nil {
@@ -71,16 +72,38 @@ func PromptNewsURL(article *NewsArticle, progressChan *chan int, ctx *context.Co
 		(*progressChan) <- -1
 		return
 	}
+
 	htmlReq.Header.Add("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.182 Safari/537.36")
-	htmlSrc, err := http.DefaultClient.Do(htmlReq)
-
-	(*progressChan) <- 1
-
+	httpClient := http.Client{Timeout: 10 * time.Second}
+	htmlSrc, err := httpClient.Do(htmlReq)
+	log.Info("Sent request")
 	if err != nil {
-		log.Errorf("Error while getting article: %s", err)
+		// check for timeout error
+		if os.IsTimeout(err) {
+			log.Error("HTTP request timed out")
+			(*progressChan) <- -1
+			return
+		} else if errors.Is(err, context.DeadlineExceeded) {
+			log.Error("HTTP request context deadline exceeded")
+			(*progressChan) <- -1
+			return
+		} else {
+			log.Errorf("Error while getting article: %s", err)
+			(*progressChan) <- -1
+			return
+		}
+
+	}
+
+	if htmlSrc.ContentLength > 5*1024*1024 { // 5 MB
+		log.Error("HTML page too large, cancelling request")
 		(*progressChan) <- -1
 		return
 	}
+
+	(*progressChan) <- 1
+
+	log.Info("Request was successful")
 	defer htmlSrc.Body.Close()
 
 	log.Info("Reading bytes from article")
@@ -101,6 +124,9 @@ func PromptNewsURL(article *NewsArticle, progressChan *chan int, ctx *context.Co
 		 I will send you the HTML content of an news website, your job is to convert the article from HTML to markdown.
 		 Make sure you ONLY format the article, do not format the advertisements on the page or any of the article suggestions.
 		 Also please do not include the metadata in your article like the title, time of publication, or author.
+		 It should be noted that this text will be displayed in a terminal
+		 window, so you should not include any HTML entities in the outputted
+		 JSON, just format those entities into the characers/strings they represent.
 		Format your responses in JSON like this:
 		{
 			"success": true // whether or not you were able to successfully access and scrape the articles full contents
@@ -110,9 +136,15 @@ func PromptNewsURL(article *NewsArticle, progressChan *chan int, ctx *context.Co
 	}
 
 	log.Info("Sending bytedata to gemini")
-	resp, err := model.GenerateContent(*ctx, req...)
+	resp, err := model.GenerateContent(ctx, req...)
 	if err != nil {
 		log.Errorf("Error while generating content: %s", err)
+		(*progressChan) <- -1
+		if errors.Is(err, context.DeadlineExceeded) {
+			log.Error("Gemini API call timeout exceeded")
+		} else {
+			log.Errorf("Error while generating content: %s", err)
+		}
 		(*progressChan) <- -1
 		return
 	}
@@ -130,9 +162,11 @@ func PromptNewsURL(article *NewsArticle, progressChan *chan int, ctx *context.Co
 			}
 			if response.Success {
 				article.Content = response.Content
+				// BUG: For some reason this does not work, article is still considered unreadable.
 				article.Readable = true
 			} else {
 				(*progressChan) <- -1
+				return
 			}
 		}
 	}
@@ -200,7 +234,7 @@ type TENewsJSON []struct {
 func GetTENews() []NewsArticle {
 	URL := "https://tradingeconomics.com/ws/stream.ashx?start=0&size=20"
 
-	client := &http.Client{}
+	client := &http.Client{Timeout: 10 * time.Second}
 
 	req, err := http.NewRequest("GET", URL, nil)
 
