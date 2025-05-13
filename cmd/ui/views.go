@@ -46,6 +46,9 @@ func (d *Dashboard) Init() tea.Cmd {
 	// make article map
 	d.articleMap = make(map[int]scraping.NewsArticle)
 
+	rss_feeds := Koanf.Strings("news.rss_feeds")
+	UserLog.Infof("RSS Feeds: %s", rss_feeds)
+
 	cmdtyTable := table.New(
 		table.WithFocused(false),
 	)

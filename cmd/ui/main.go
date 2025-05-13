@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -24,6 +25,11 @@ import (
 	"github.com/charmbracelet/wish/logging"
 	"github.com/muesli/termenv"
 	overlay "github.com/rmhubbert/bubbletea-overlay"
+
+	// config stuff
+	"github.com/knadh/koanf/parsers/json"
+	"github.com/knadh/koanf/providers/file"
+	"github.com/knadh/koanf/v2"
 )
 
 var (
@@ -33,6 +39,8 @@ var (
 	Renderer *lipgloss.Renderer
 	// The program for bubbleatea, use this to manually send updates
 	Program *tea.Program
+	// Configuration manager
+	Koanf *koanf.Koanf
 )
 
 type Tab struct {
@@ -199,6 +207,16 @@ func setupSSHServer(host string, port string, logFile *os.File) {
 
 }
 
+func LoadConfiguration(path string) {
+	UserLog.Debug("Loading configuration at %s", path)
+	Koanf = koanf.New(".")
+
+	if err := Koanf.Load(file.Provider(path), json.Parser()); err != nil {
+		UserLog.Fatalf("Error ocurred while loading config: %v", err)
+	}
+
+}
+
 func main() {
 	logFile, err := os.OpenFile("./debug.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
@@ -208,8 +226,6 @@ func main() {
 	defer logFile.Close()
 
 	// SECTION: SSH Server setup
-	// TODO: If SSH_HOST or SSH_PORT are not set, configure to run locally.
-	// can probably be accomplished by moving ssh logic to it's own function.
 	host, hostExists := os.LookupEnv("SSH_HOST")
 	port, portExists := os.LookupEnv("SSH_PORT")
 
@@ -241,6 +257,18 @@ func main() {
 			tabs:      []*Tab{dashTab, calTab},
 			activeTab: 0,
 		}
+
+		// SECTION: Get config file path
+		configHome, err := os.UserHomeDir()
+
+		if err != nil {
+			log.Fatal("Error ocurred while loading config file path: %v", err)
+		}
+
+		configFilePath := filepath.Join(configHome, ".config", "gloom", "config.json")
+
+		LoadConfiguration(configFilePath)
+
 		Program = tea.NewProgram(m)
 		Program.Run()
 	}
