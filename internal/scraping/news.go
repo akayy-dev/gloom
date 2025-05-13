@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"gloomberg/internal/shared"
 	"io"
 	"net/http"
 	"os"
@@ -178,7 +179,19 @@ func PromptNewsURL(article *NewsArticle, progressChan *chan int, ctx context.Con
 }
 
 func GetAllNews() tea.Msg {
-	news := append(GetYahooNews(), GetTENews()...)
+	var news []NewsArticle
+
+	// TODO: Refactor this code to get news from every RSS feed in the config file
+	// NOTE: Program crashed the first time I tried, but it's 2 in the morning so what do I know
+
+	rssFeeds := shared.Koanf.Strings("news.rss_feeds")
+
+	for _, url := range rssFeeds {
+		log.Infof("Getting news from %s", url)
+		news = append(news, GetRSSFeed(url)...)
+	}
+
+	news = append(news, GetTENews()...)
 
 	sort.Slice(news, func(i, j int) bool {
 		return news[i].PublicationDate.After(news[j].PublicationDate)
@@ -187,10 +200,8 @@ func GetAllNews() tea.Msg {
 	return NewsUpdate(news)
 }
 
-func GetYahooNews() []NewsArticle {
-	// NOTE: This technically could get news from any RSS url.
-	RSS_URL := "https://news.yahoo.com/rss/finance"
-
+// Get `NewsArticle`s from an RSS url
+func GetRSSFeed(RSS_URL string) []NewsArticle {
 	fp := feed.Parser{}
 
 	feed, err := fp.ParseURL(RSS_URL)
@@ -199,11 +210,12 @@ func GetYahooNews() []NewsArticle {
 		log.Error("Failed to get Yahoo News data", "error: ", err)
 	}
 
+	source := feed.Title // title of the RSS feed
 	var articles []NewsArticle
 	for _, item := range feed.Items {
 		article := NewsArticle{
 			Title:           item.Title,
-			Source:          "Yahoo Finance",
+			Source:          source,
 			Readable:        false,
 			PublicationDate: *item.PublishedParsed,
 			URL:             item.Link,

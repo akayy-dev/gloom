@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"gloomberg/internal/shared"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -32,6 +33,8 @@ import (
 	"github.com/knadh/koanf/v2"
 )
 
+// NOTE: These are also defined in the shared package,
+// pick one and stick to it!
 var (
 	// Logging for user activities
 	UserLog *log.Logger
@@ -210,6 +213,7 @@ func setupSSHServer(host string, port string, logFile *os.File) {
 func LoadConfiguration(path string) {
 	UserLog.Debug("Loading configuration at %s", path)
 	Koanf = koanf.New(".")
+	shared.Koanf = Koanf
 
 	if err := Koanf.Load(file.Provider(path), json.Parser()); err != nil {
 		UserLog.Fatalf("Error ocurred while loading config: %v", err)
