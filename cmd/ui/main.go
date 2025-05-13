@@ -1,7 +1,5 @@
 package main
 
-// Comment for git diff
-
 import (
 	"context"
 	"errors"
@@ -154,20 +152,10 @@ func (m MainModel) View() string {
 	}
 }
 
-func main() {
-	logFile, err := os.OpenFile("./debug.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
-		log.Fatal(err)
-	}
-
+// Function to setup the application as an SSH server.
+func setupSSHServer(host string, port string, logFile *os.File) {
 	logOutput := io.MultiWriter(os.Stdout, logFile)
-
 	log.SetOutput(logOutput)
-	defer logFile.Close()
-
-	// SECTION: SSH Server setup
-	host := os.Getenv("SSH_HOST")
-	port := os.Getenv("SSH_PORT")
 
 	s, err := wish.NewServer(
 		wish.WithAddress(net.JoinHostPort(host, port)),
@@ -207,6 +195,54 @@ func main() {
 
 	if err := s.Shutdown(ctx); err != nil && errors.Is(err, ssh.ErrServerClosed) {
 		log.Error("Could not stop server", "error", err)
+	}
+
+}
+
+func main() {
+	logFile, err := os.OpenFile("./debug.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer logFile.Close()
+
+	// SECTION: SSH Server setup
+	// TODO: If SSH_HOST or SSH_PORT are not set, configure to run locally.
+	// can probably be accomplished by moving ssh logic to it's own function.
+	host, hostExists := os.LookupEnv("SSH_HOST")
+	port, portExists := os.LookupEnv("SSH_PORT")
+
+	if hostExists && portExists {
+		setupSSHServer(host, port, logFile)
+	} else {
+		// TODO: Setup program without SSH
+		UserLog = log.New(logFile)
+		UserLog.SetOutput(logFile)
+		log.SetOutput(logFile)
+
+		var dash tea.Model = &Dashboard{
+			name: "Dashboard A",
+		}
+
+		var cal tea.Model = &EconomicCalendar{}
+
+		dashTab := &Tab{
+			name:  "Dashboard",
+			model: dash,
+		}
+
+		calTab := &Tab{
+			name:  "Calendar",
+			model: cal,
+		}
+
+		m := MainModel{
+			tabs:      []*Tab{dashTab, calTab},
+			activeTab: 0,
+		}
+		Program = tea.NewProgram(m)
+		Program.Run()
 	}
 }
 
