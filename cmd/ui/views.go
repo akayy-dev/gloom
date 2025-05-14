@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"gloomberg/internal/scraping"
+	"gloomberg/internal/shared"
 	"gloomberg/internal/stocks"
 
 	"github.com/charmbracelet/bubbles/table"
@@ -46,7 +47,7 @@ func (d *Dashboard) Init() tea.Cmd {
 	// make article map
 	d.articleMap = make(map[int]scraping.NewsArticle)
 
-	rss_feeds := Koanf.Strings("news.rss_feeds")
+	rss_feeds := shared.Koanf.Strings("news.rss_feeds")
 	UserLog.Infof("RSS Feeds: %s", rss_feeds)
 
 	cmdtyTable := table.New(

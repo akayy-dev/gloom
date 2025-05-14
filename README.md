@@ -35,3 +35,5 @@ Make sure to set these variables in your environment before starting the applica
     go run ./cmd/ui
     ```
 
+# Configuration
+You can configure the behavior of the app using a `config.json` file. Gloom searches in `$HOME/.config/gloom/` for the config file. A default config file can be found [here](./internal/shared/config/default.json)

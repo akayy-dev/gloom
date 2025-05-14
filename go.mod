@@ -14,6 +14,7 @@ require (
 	github.com/google/generative-ai-go v0.19.0
 	github.com/knadh/koanf/parsers/json v1.0.0
 	github.com/knadh/koanf/providers/file v1.2.0
+	github.com/knadh/koanf/providers/rawbytes v1.0.0
 	github.com/knadh/koanf/v2 v2.2.0
 	github.com/mmcdole/gofeed v1.3.0
 	github.com/muesli/termenv v0.16.0

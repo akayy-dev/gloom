@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"gloomberg/internal/shared"
 	"io"
 	"net"
 	"os"
@@ -12,7 +13,6 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
-	"gloomberg/internal/shared"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -26,10 +26,6 @@ import (
 	"github.com/charmbracelet/wish/logging"
 	"github.com/muesli/termenv"
 	overlay "github.com/rmhubbert/bubbletea-overlay"
-
-	// config stuff
-	"github.com/knadh/koanf/parsers/json"
-	"github.com/knadh/koanf/providers/file"
 	"github.com/knadh/koanf/v2"
 )
 
@@ -68,6 +64,26 @@ type MainModel struct {
 type TabChangeMsg int
 
 func (m MainModel) Init() tea.Cmd {
+	// SECTION: Setup Configuration
+	configHome, err := os.UserHomeDir()
+
+	if err != nil {
+		UserLog.Fatal("Error ocurred while loading config file path: %v", err)
+	}
+
+	configFilePath := filepath.Join(configHome, ".config", "gloom", "config.json")
+	UserLog.Infof("Checking for config file at path %s", configFilePath)
+	// Check if user config file exists
+	if _, err := os.Stat(configFilePath); err == nil {
+		UserLog.Infof("Config file found at %s, loading...", configFilePath)
+		shared.LoadUserConfig(configFilePath)
+	} else {
+		// if a config file isn't found, load the default one.
+		UserLog.Infof("Config file not found, loading default config")
+		shared.LoadDefaultConfig()
+	}
+
+
 	tab := m.tabs[m.activeTab].model
 	return tea.Batch(tea.ClearScreen, tea.SetWindowTitle("gloom"), tab.Init())
 }
@@ -210,17 +226,6 @@ func setupSSHServer(host string, port string, logFile *os.File) {
 
 }
 
-func LoadConfiguration(path string) {
-	UserLog.Debug("Loading configuration at %s", path)
-	Koanf = koanf.New(".")
-	shared.Koanf = Koanf
-
-	if err := Koanf.Load(file.Provider(path), json.Parser()); err != nil {
-		UserLog.Fatalf("Error ocurred while loading config: %v", err)
-	}
-
-}
-
 func main() {
 	logFile, err := os.OpenFile("./debug.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
@@ -232,6 +237,7 @@ func main() {
 	// SECTION: SSH Server setup
 	host, hostExists := os.LookupEnv("SSH_HOST")
 	port, portExists := os.LookupEnv("SSH_PORT")
+
 
 	if hostExists && portExists {
 		setupSSHServer(host, port, logFile)
@@ -262,17 +268,6 @@ func main() {
 			activeTab: 0,
 		}
 
-		// SECTION: Get config file path
-		configHome, err := os.UserHomeDir()
-
-		if err != nil {
-			log.Fatal("Error ocurred while loading config file path: %v", err)
-		}
-
-		configFilePath := filepath.Join(configHome, ".config", "gloom", "config.json")
-
-		LoadConfiguration(configFilePath)
-
 		Program = tea.NewProgram(m)
 		Program.Run()
 	}
@@ -288,7 +283,7 @@ func bubbleteaMiddleware() wish.Middleware {
 	}
 	log.Info("bubbletea program created")
 	teaHandler := func(s ssh.Session) *tea.Program {
-		return newProg(setupBubbleTea(s))
+		return newProg(setupSSHApplication(s))
 	}
 
 	return bm.MiddlewareWithProgramHandler(teaHandler, termenv.Ascii)
@@ -296,7 +291,7 @@ func bubbleteaMiddleware() wish.Middleware {
 }
 
 // Setup bubletea model to work with Wish
-func setupBubbleTea(s ssh.Session) (tea.Model, []tea.ProgramOption) {
+func setupSSHApplication(s ssh.Session) (tea.Model, []tea.ProgramOption) {
 	log.Info("setupBubbleTea")
 	userString := fmt.Sprintf("%s.%s", s.User(), strings.Split(s.RemoteAddr().String(), ":")[0])
 	log.Infof("Connection from %s", userString)
@@ -313,7 +308,6 @@ func setupBubbleTea(s ssh.Session) (tea.Model, []tea.ProgramOption) {
 	*/
 
 	logTimeStamp := time.Now().Format("01.02.2006 15:04 MST")
-	log.Info(logTimeStamp)
 
 	// Make the logs directory if it doesn't exist yet.
 	if err := os.MkdirAll("./logs", 0755); err != nil {
