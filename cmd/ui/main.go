@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"gloomberg/cmd/ui/views"
 	"gloomberg/internal/shared"
 	"io"
 	"net"
@@ -26,20 +27,6 @@ import (
 	"github.com/charmbracelet/wish/logging"
 	"github.com/muesli/termenv"
 	overlay "github.com/rmhubbert/bubbletea-overlay"
-	"github.com/knadh/koanf/v2"
-)
-
-// NOTE: These are also defined in the shared package,
-// pick one and stick to it!
-var (
-	// Logging for user activities
-	UserLog *log.Logger
-	// Renderer for creating new styles
-	Renderer *lipgloss.Renderer
-	// The program for bubbleatea, use this to manually send updates
-	Program *tea.Program
-	// Configuration manager
-	Koanf *koanf.Koanf
 )
 
 type Tab struct {
@@ -68,21 +55,20 @@ func (m MainModel) Init() tea.Cmd {
 	configHome, err := os.UserHomeDir()
 
 	if err != nil {
-		UserLog.Fatal("Error ocurred while loading config file path: %v", err)
+		shared.UserLog.Fatal("Error ocurred while loading config file path: %v", err)
 	}
 
 	configFilePath := filepath.Join(configHome, ".config", "gloom", "config.json")
-	UserLog.Infof("Checking for config file at path %s", configFilePath)
+	shared.UserLog.Infof("Checking for config file at path %s", configFilePath)
 	// Check if user config file exists
 	if _, err := os.Stat(configFilePath); err == nil {
-		UserLog.Infof("Config file found at %s, loading...", configFilePath)
+		shared.UserLog.Infof("Config file found at %s, loading...", configFilePath)
 		shared.LoadUserConfig(configFilePath)
 	} else {
 		// if a config file isn't found, load the default one.
-		UserLog.Infof("Config file not found, loading default config")
+		shared.UserLog.Infof("Config file not found, loading default config")
 		shared.LoadDefaultConfig()
 	}
-
 
 	tab := m.tabs[m.activeTab].model
 	return tea.Batch(tea.ClearScreen, tea.SetWindowTitle("gloom"), tab.Init())
@@ -108,7 +94,6 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		for i, _ := range m.tabs {
 			// run if key index is equal to key pressed (accounting for 0 index shift)
-			// TODO: Test if this actually preserves state.
 			if keyIndex, err := strconv.Atoi(msg.String()); err == nil && i+1 == keyIndex {
 				return m, func() tea.Msg { return TabChangeMsg(i) }
 			}
@@ -117,11 +102,11 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "Q":
 			fallthrough
 		case "q":
-			UserLog.Info("Exiting on user request")
+			shared.UserLog.Info("Exiting on user request")
 			return m, tea.Quit
 		case "esc":
 			if m.overlayOpen {
-				UserLog.Info("Exiting overlay")
+				shared.UserLog.Info("Exiting overlay")
 				m.overlayManager.Foreground.Update(ModalCloseMsg(true))
 				m.overlayOpen = false
 			}
@@ -132,15 +117,15 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.ClearScreen
 
 	case TabChangeMsg:
-		UserLog.Infof("Switching to view tabs[%d]", int(msg))
+		shared.UserLog.Infof("Switching to view tabs[%d]", int(msg))
 		m.activeTab = int(msg)
 
-	case DisplayOverlayMsg:
+	case views.DisplayOverlayMsg:
 		// how to display overlay messages
 		// NOTE: The code for pressing escape to exit the overlay
 		//  is in the keypress part of this switch statement
 		if !m.overlayOpen {
-			UserLog.Info("displaying news overlay")
+			shared.UserLog.Info("displaying news overlay")
 			m.overlayManager = overlay.New(msg, m, overlay.Center, overlay.Center, 0, 0)
 			m.overlayOpen = true
 			cmd = m.overlayManager.Foreground.Init() // so commands returned from the overlay on init run
@@ -165,7 +150,7 @@ func (m MainModel) View() string {
 	for i, t := range m.tabs {
 		var tabText string
 		if i == m.activeTab {
-			bg := Renderer.NewStyle().Background(lipgloss.Color("#703FFD"))
+			bg := shared.Renderer.NewStyle().Background(lipgloss.Color("#703FFD"))
 			tabText = bg.Render(fmt.Sprintf(" (%d) %s ", i+1, t.name))
 		} else {
 			tabText = fmt.Sprintf(" (%d) %s ", i+1, t.name)
@@ -238,38 +223,30 @@ func main() {
 	host, hostExists := os.LookupEnv("SSH_HOST")
 	port, portExists := os.LookupEnv("SSH_PORT")
 
-
 	if hostExists && portExists {
 		setupSSHServer(host, port, logFile)
 	} else {
 		// TODO: Setup program without SSH
-		UserLog = log.New(logFile)
-		UserLog.SetOutput(logFile)
+		shared.UserLog = log.New(logFile)
+		shared.UserLog.SetOutput(logFile)
 		log.SetOutput(logFile)
 
-		var dash tea.Model = &Dashboard{
-			name: "Dashboard A",
+		var dash tea.Model = &views.Dashboard{
+			Name: "Dashboard A",
 		}
-
-		var cal tea.Model = &EconomicCalendar{}
 
 		dashTab := &Tab{
 			name:  "Dashboard",
 			model: dash,
 		}
 
-		calTab := &Tab{
-			name:  "Calendar",
-			model: cal,
-		}
-
 		m := MainModel{
-			tabs:      []*Tab{dashTab, calTab},
+			tabs:      []*Tab{dashTab},
 			activeTab: 0,
 		}
 
-		Program = tea.NewProgram(m)
-		Program.Run()
+		shared.Program = tea.NewProgram(m)
+		shared.Program.Run()
 	}
 }
 
@@ -278,7 +255,7 @@ func bubbleteaMiddleware() wish.Middleware {
 	log.Info("Starting middleware")
 	newProg := func(m tea.Model, opts []tea.ProgramOption) *tea.Program {
 		p := tea.NewProgram(m, opts...)
-		Program = p
+		shared.Program = p
 		return p
 	}
 	log.Info("bubbletea program created")
@@ -298,7 +275,7 @@ func setupSSHApplication(s ssh.Session) (tea.Model, []tea.ProgramOption) {
 	// pty, _, _ := s.Pty()
 
 	// use instead of lipgloss.NewStyle()
-	Renderer = bubbletea.MakeRenderer(s)
+	shared.Renderer = bubbletea.MakeRenderer(s)
 
 	// CREATE USER LOGGER
 	/* BUG: File closes after function ends,
@@ -325,38 +302,31 @@ func setupSSHApplication(s ssh.Session) (tea.Model, []tea.ProgramOption) {
 		log.Error("Cannot create log file", err)
 	}
 
-	UserLog = log.New(f)
+	shared.UserLog = log.New(f)
 	// NOTE: Setting time format doesn't work, figure out how to fix this later.
-	UserLog.SetTimeFormat("2006/01/02 15:04:05")
-	UserLog.Info("User log created")
+	shared.UserLog.SetTimeFormat("2006/01/02 15:04:05")
+	shared.UserLog.Info("User log created")
 
 	// This function runs on
 	go func() {
 		<-s.Context().Done()
-		UserLog.Info("Connection closed, ending file.")
+		shared.UserLog.Info("Connection closed, ending file.")
 		if err := f.Close(); err != nil {
 			log.Error("Error closing log file", "error", err)
 		}
 	}()
 
-	var dash tea.Model = &Dashboard{
-		name: "Dashboard A",
+	var dash tea.Model = &views.Dashboard{
+		Name: "Dashboard A",
 	}
-
-	var cal tea.Model = &EconomicCalendar{}
 
 	dashTab := &Tab{
 		name:  "Dashboard",
 		model: dash,
 	}
 
-	calTab := &Tab{
-		name:  "Calendar",
-		model: cal,
-	}
-
 	m := MainModel{
-		tabs:      []*Tab{dashTab, calTab},
+		tabs:      []*Tab{dashTab},
 		activeTab: 0,
 	}
 

@@ -1,9 +1,10 @@
-package main
+package components
 
 import (
 	"context"
 	"fmt"
 	"gloomberg/internal/scraping"
+	"gloomberg/internal/shared"
 	"time"
 
 	"github.com/charmbracelet/bubbles/viewport"
@@ -19,14 +20,14 @@ type UpdateContentMsg scraping.NewsArticle
 type UpdateStatusMsg int
 
 type NewsModal struct {
-	article *scraping.NewsArticle
+	Article *scraping.NewsArticle
 	// width
-	w int
-	h int
+	W int
+	H int
 	// viewport model
 	vp viewport.Model
 
-	// glamour renderer
+	// glamour shared.Renderer
 	styler *glamour.TermRenderer
 
 	// context for prompt function.
@@ -46,10 +47,10 @@ type NewsModal struct {
 func scrapeNews(article *scraping.NewsArticle, status *chan int, ctx context.Context) tea.Cmd {
 	log.Info("scrapeNews CMD")
 	return func() tea.Msg {
-		UserLog.Info("scrapeNews Cmd run")
+		shared.UserLog.Info("scrapeNews Cmd run")
 		go func() {
 			for progress := range *status {
-				Program.Send(UpdateStatusMsg(progress))
+				shared.Program.Send(UpdateStatusMsg(progress))
 			}
 		}()
 		go scraping.PromptNewsURL(article, status, ctx) // needs to run in it's own routine for listen to workk
@@ -58,40 +59,40 @@ func scrapeNews(article *scraping.NewsArticle, status *chan int, ctx context.Con
 }
 
 func (n *NewsModal) styleArticle() (string, error) {
-	UserLog.Info("Styling markdown")
-	md, err := n.styler.Render(n.article.Content)
+	shared.UserLog.Info("Styling markdown")
+	md, err := n.styler.Render(n.Article.Content)
 	if err != nil {
-		UserLog.Errorf("Cannot render markdown content %s", err)
+		shared.UserLog.Errorf("Cannot render markdown content %s", err)
 	}
 
-	header, err := n.styler.Render(fmt.Sprintf("# %s\n## %s\n*Published: %s*", n.article.Title, n.article.Source, n.article.PublicationDate.Format("01/02/2006")))
+	header, err := n.styler.Render(fmt.Sprintf("# %s\n## %s\n*Published: %s*", n.Article.Title, n.Article.Source, n.Article.PublicationDate.Format("01/02/2006")))
 	if err != nil {
-		UserLog.Errorf("Cannot render markdown content %s", err)
+		shared.UserLog.Errorf("Cannot render markdown content %s", err)
 	}
 	return fmt.Sprintf("%s\n\n%s", header, md), nil
 }
 
 func (n *NewsModal) Init() tea.Cmd {
 	// initialize viewport with full width but minimal height
-	n.vp = viewport.New(n.w, 1)
-	n.vp.Style = Renderer.NewStyle().
+	n.vp = viewport.New(n.W, 1)
+	n.vp.Style = shared.Renderer.NewStyle().
 		Border(lipgloss.NormalBorder()).
 		Padding(0, 0).
-		Width(n.w)
+		Width(n.W)
 
-	// initialize glamour renderer
+	// initialize glamour shared.Renderer
 	var err error
 	n.styler, err = glamour.NewTermRenderer(
 		glamour.WithAutoStyle(),
-		glamour.WithWordWrap(n.w-5),
+		glamour.WithWordWrap(n.W-5),
 	)
 	if err != nil {
-		UserLog.Errorf("Cannot create glamour renderer %s", err)
+		shared.UserLog.Errorf("Cannot create glamour shared.Renderer %s", err)
 	}
 
 	// if article is not readable, scrape it
-	if !n.article.Readable {
-		UserLog.Info("Article not readable, loading content")
+	if !n.Article.Readable {
+		shared.UserLog.Info("Article not readable, loading content")
 		n.loading = true
 		n.progressChan = make(chan int)
 
@@ -100,7 +101,7 @@ func (n *NewsModal) Init() tea.Cmd {
 		n.newsCtx, n.newsCtxCancel = context.WithTimeout(ctx, 30*time.Second)
 
 		return tea.Batch(
-			scrapeNews(n.article, &n.progressChan, n.newsCtx),
+			scrapeNews(n.Article, &n.progressChan, n.newsCtx),
 		)
 
 	} else {
@@ -108,10 +109,10 @@ func (n *NewsModal) Init() tea.Cmd {
 		content, err := n.styleArticle()
 		n.vp.SetContent(content)
 		if err != nil {
-			UserLog.Errorf("Cannot render markdown content %s", err)
+			shared.UserLog.Errorf("Cannot render markdown content %s", err)
 		}
 		n.loading = false
-		n.vp.Height = n.h
+		n.vp.Height = n.H
 		return nil
 	}
 }
@@ -121,23 +122,23 @@ func (n *NewsModal) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		// update viewport size
-		n.w = msg.Width / 2
-		n.h = int(float64(msg.Height) * .8)
-		n.vp.Width = n.w
-		n.vp.Height = n.h
+		n.W = msg.Width / 2
+		n.H = int(float64(msg.Height) * .8)
+		n.vp.Width = n.W
+		n.vp.Height = n.H
 
-	case ModalCloseMsg:
+	case shared.ModalCloseMsg:
 		// this basically checks if we've scraped the news using ai
 		if n.loading {
-			UserLog.Info("Closing news modal and cancelling network request")
+			shared.UserLog.Info("Closing news modal and cancelling network request")
 			n.newsCtxCancel()
 		}
 	case UpdateContentMsg:
-		UserLog.Info("Finished scraping article")
-		n.vp.Height = n.h
+		shared.UserLog.Info("Finished scraping article")
+		n.vp.Height = n.H
 		content, err := n.styleArticle()
 		if err != nil {
-			UserLog.Errorf("Cannot render markdown content %s", err)
+			shared.UserLog.Errorf("Cannot render markdown content %s", err)
 		}
 		n.loading = false
 		n.vp.SetContent(content)
@@ -147,7 +148,7 @@ func (n *NewsModal) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var statusMsg string
 		switch msg {
 		case -1: // error case
-			UserLog.Error(" Error occured while scraping article, closing context")
+			shared.UserLog.Error(" Error occured while scraping article, closing context")
 			statusMsg = " An error occured"
 			n.newsCtxCancel()
 		case 0:
@@ -160,14 +161,14 @@ func (n *NewsModal) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			statusMsg = " Scraping text from article"
 		case 4:
 			statusMsg = " Done"
-			UserLog.Info(statusMsg)
+			shared.UserLog.Info(statusMsg)
 			// BUG: This isn't working, UI gets stuck on "scraping" message.
 			// No idea why
-			return n, func() tea.Msg { return UpdateContentMsg(*n.article) }
+			return n, func() tea.Msg { return UpdateContentMsg(*n.Article) }
 		}
 
 		n.statusMessage = statusMsg
-		UserLog.Info(statusMsg)
+		shared.UserLog.Info(statusMsg)
 	}
 	n.vp, cmd = n.vp.Update(msg)
 	return n, cmd
@@ -175,8 +176,8 @@ func (n *NewsModal) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (n *NewsModal) View() string {
 	if n.loading {
-		statusStyle := Renderer.NewStyle().
-			Width(n.w).
+		statusStyle := shared.Renderer.NewStyle().
+			Width(n.W).
 			Height(10).
 			Align(lipgloss.Center, lipgloss.Center).
 			Border(lipgloss.NormalBorder())

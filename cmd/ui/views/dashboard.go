@@ -1,4 +1,4 @@
-package main
+package views
 
 import (
 	"fmt"
@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"gloomberg/cmd/ui/components"
 	"gloomberg/internal/scraping"
 	"gloomberg/internal/shared"
 	"gloomberg/internal/stocks"
@@ -24,9 +25,8 @@ type TableStyle struct {
 	outerStyle lipgloss.Style
 }
 
-// What the user opens to, should have general information on the market.
 type Dashboard struct {
-	name string
+	Name string
 	// screen height
 	height int
 	// screen width
@@ -47,9 +47,6 @@ func (d *Dashboard) Init() tea.Cmd {
 	// make article map
 	d.articleMap = make(map[int]scraping.NewsArticle)
 
-	rss_feeds := shared.Koanf.Strings("news.rss_feeds")
-	UserLog.Infof("RSS Feeds: %s", rss_feeds)
-
 	cmdtyTable := table.New(
 		table.WithFocused(false),
 	)
@@ -58,32 +55,32 @@ func (d *Dashboard) Init() tea.Cmd {
 	newsTable := table.New(table.WithFocused(false))
 
 	foucsedInnerStyle := table.Styles{
-		Header: Renderer.NewStyle().
+		Header: shared.Renderer.NewStyle().
 			Align(lipgloss.Center).
 			Bold(true).
 			Foreground(lipgloss.Color("#FFFFFF")),
-		Cell:     Renderer.NewStyle(),
-		Selected: Renderer.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFFF")),
+		Cell:     shared.Renderer.NewStyle(),
+		Selected: shared.Renderer.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFFF")),
 	}
 
 	unfocusedInnerStyle := table.Styles{
-		Header: Renderer.NewStyle().
+		Header: shared.Renderer.NewStyle().
 			BorderForeground(lipgloss.Color("#703FFD")).
 			Bold(false),
-		Cell:     Renderer.NewStyle(),
-		Selected: Renderer.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFF")),
+		Cell:     shared.Renderer.NewStyle(),
+		Selected: shared.Renderer.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFF")),
 	}
 
 	d.focusedStyle = TableStyle{
 		innerStyle: foucsedInnerStyle,
-		outerStyle: Renderer.NewStyle().
+		outerStyle: shared.Renderer.NewStyle().
 			BorderForeground(lipgloss.Color("#703FFD")).
 			Border(lipgloss.NormalBorder()),
 	}
 
 	d.unfocusedStyle = TableStyle{
 		innerStyle: unfocusedInnerStyle,
-		outerStyle: Renderer.NewStyle().BorderForeground(lipgloss.Color("#FFFFFF")).Border(lipgloss.NormalBorder()),
+		outerStyle: shared.Renderer.NewStyle().BorderForeground(lipgloss.Color("#FFFFFF")).Border(lipgloss.NormalBorder()),
 	}
 
 	d.tables = append(d.tables, cmdtyTable, stockTable, newsTable)
@@ -177,7 +174,7 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			d.tables[d.focused].Focus()
 			d.tables[d.focused].SetStyles(d.focusedStyle.innerStyle)
 
-			UserLog.Infof("Focusing on table %v", d.focused)
+			shared.UserLog.Infof("Focusing on table %v", d.focused)
 		case "shift+tab":
 			d.tables[d.focused].Blur()
 			if d.focused > 0 {
@@ -190,10 +187,10 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			d.tables[d.focused].Focus()
 			d.tables[d.focused].SetStyles(d.focusedStyle.innerStyle)
 
-			UserLog.Infof("Focusing on table %v", d.focused)
+			shared.UserLog.Infof("Focusing on table %v", d.focused)
 
 		case "enter":
-			UserLog.Info("enter pressed")
+			shared.UserLog.Info("enter pressed")
 
 			switch d.focused {
 			// different actions depending on which table is focused
@@ -203,10 +200,10 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					log.Fatal(err)
 				}
 				selectedStory := d.articleMap[rowID]
-				newsOverlay := NewsModal{
-					article: &selectedStory,
-					w:       d.width / 2,
-					h:       int(float64(d.height) * .8),
+				newsOverlay := components.NewsModal{
+					Article: &selectedStory,
+					W:       d.width / 2,
+					H:       int(float64(d.height) * .8),
 				}
 				return d, func() tea.Msg { return (&newsOverlay) }
 
@@ -215,7 +212,7 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		d.tables[d.focused], cmd = d.tables[d.focused].Update(msg)
 
 	case scraping.CommodityUpdateMsg:
-		UserLog.Info("Commodity Data Recieved")
+		shared.UserLog.Info("Commodity Data Recieved")
 		rows := []table.Row{}
 		for _, cmdty := range msg {
 			var color string
@@ -225,18 +222,18 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				color = "#FF211D"
 			}
 
-			style := Renderer.NewStyle().Foreground(lipgloss.Color(color))
+			style := shared.Renderer.NewStyle().Foreground(lipgloss.Color(color))
 			rows = append(rows, table.Row{
 				// NOTE: Attempting to add color to other columns results in visual bug.
 				style.Render(cmdty.Name), fmt.Sprintf("%.2f%%", cmdty.OneDayMovement), fmt.Sprintf("%.2f%%", cmdty.WeeklyMovement), fmt.Sprintf("$%.2f", cmdty.Price),
 			})
 		}
 		d.tables[0].SetRows(rows)
-		UserLog.Info("Got commodity data")
+		shared.UserLog.Info("Got commodity data")
 		return d, scraping.CommodityUpdateTick()
 
 	case scraping.NewsUpdate:
-		UserLog.Info("Got news update")
+		shared.UserLog.Info("Got news update")
 
 		rows := []table.Row{}
 
@@ -275,13 +272,13 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		d.tables[2].SetRows(rows)
 
 	case stocks.OHLCVTickerUpdateMsg:
-		UserLog.Info("Got stock data")
+		shared.UserLog.Info("Got stock data")
 		var rows []table.Row
 		for _, row := range msg {
 			rows = append(rows, table.Row{
 				row.Ticker, "", "", fmt.Sprintf("$%.2f", row.TngoLast),
 			})
-			UserLog.Infof("Adding row for %s", row.Ticker)
+			shared.UserLog.Infof("Adding row for %s", row.Ticker)
 		}
 		d.tables[1].SetRows(rows)
 	}
@@ -290,8 +287,8 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (d *Dashboard) View() string {
-	foucsedBorder := Renderer.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color("#703FFD"))
-	unfocusedBorder := Renderer.NewStyle().Border(lipgloss.NormalBorder())
+	foucsedBorder := shared.Renderer.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color("#703FFD"))
+	unfocusedBorder := shared.Renderer.NewStyle().Border(lipgloss.NormalBorder())
 
 	var styledTables []string
 	for _, t := range d.tables {
@@ -309,21 +306,4 @@ func (d *Dashboard) View() string {
 	content := lipgloss.JoinVertical(0, upperDiv, styledTables[2])
 	return content
 
-}
-
-// Economic Calendar Tab
-type EconomicCalendar struct {
-}
-
-func (cal EconomicCalendar) Init() tea.Cmd {
-	return nil
-}
-
-func (cal EconomicCalendar) Update(tea.Msg) (tea.Model, tea.Cmd) {
-	return cal, nil
-
-}
-
-func (cal EconomicCalendar) View() string {
-	return "Economic Calendar"
 }
