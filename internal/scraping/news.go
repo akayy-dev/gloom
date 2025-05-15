@@ -27,6 +27,7 @@ type NewsUpdate []NewsArticle
 type NewsArticle struct {
 	Title           string
 	PublicationDate time.Time
+	Bullets         []string
 	URL             string
 	Source          string
 	Readable        bool
@@ -35,8 +36,9 @@ type NewsArticle struct {
 
 // Response from Gemini when scraping news articles
 type GeminiResponse struct {
-	Success bool   `json:"success"`
-	Content string `json:"content"`
+	Success bool     `json:"success"`
+	Bullets []string `json:"bullets"`
+	Content string   `json:"content"`
 }
 
 // Sanitize json to be properly marsalled
@@ -131,6 +133,7 @@ func PromptNewsURL(article *NewsArticle, progressChan *chan int, ctx context.Con
 		Format your responses in JSON like this:
 		{
 			"success": true // whether or not you were able to successfully access and scrape the articles full contents
+			"bullets": []string // up to 5 bullet points summarizing the article
 			"content": <CONTENT> // the content of the article in a string
 		}
 		`),
@@ -163,8 +166,9 @@ func PromptNewsURL(article *NewsArticle, progressChan *chan int, ctx context.Con
 			}
 			if response.Success {
 				article.Content = response.Content
-				// BUG: For some reason this does not work, article is still considered unreadable.
+				// BUG: For some reason this does not work, article is still *rendered as* unreadable.
 				article.Readable = true
+				article.Bullets = response.Bullets
 			} else {
 				(*progressChan) <- -1
 				return
@@ -297,7 +301,7 @@ func GetTENews() []NewsArticle {
 
 		article := NewsArticle{
 			Title:           n.Title,
-			Source:          "TE",
+			Source:          "TradingEconomics",
 			Readable:        true,
 			Content:         n.Description,
 			PublicationDate: parsedTime,

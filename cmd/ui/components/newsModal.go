@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"gloomberg/internal/scraping"
 	"gloomberg/internal/shared"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/viewport"
@@ -65,11 +66,41 @@ func (n *NewsModal) styleArticle() (string, error) {
 		shared.UserLog.Errorf("Cannot render markdown content %s", err)
 	}
 
-	header, err := n.styler.Render(fmt.Sprintf("# %s\n## %s\n*Published: %s*", n.Article.Title, n.Article.Source, n.Article.PublicationDate.Format("01/02/2006")))
+	var header string
+
+	if len(n.Article.Bullets) > 0 {
+		// TODO: build a list of bullets and render them in markdown
+		var builder strings.Builder
+
+		// building bullets as a (unrendered) list
+		for i, bullet := range n.Article.Bullets {
+			// don't put a newline if we are at the last bullet point
+			if i < len(n.Article.Bullets)-1 {
+				builder.WriteString(fmt.Sprintf("- %s\n", bullet))
+			} else {
+				builder.WriteString(fmt.Sprintf("- %s", bullet))
+			}
+		}
+
+		// NOTE: For some reason there needs to be two newlines for summary to render on a different line
+		// than published. Don't know why but if it works it works
+		header, err = n.styler.Render(fmt.Sprintf("# %s\n## %s\n*Published: %s* \n\n  Summary \n %s",
+			n.Article.Title,
+			n.Article.Source,
+			n.Article.PublicationDate.Format("01/02/2006"),
+			builder.String()))
+
+	} else {
+		header, err = n.styler.Render(fmt.Sprintf("# %s\n## %s\n*Published: %s*",
+			n.Article.Title,
+			n.Article.Source,
+			n.Article.PublicationDate.Format("01/02/2006")))
+
+	}
 	if err != nil {
 		shared.UserLog.Errorf("Cannot render markdown content %s", err)
 	}
-	return fmt.Sprintf("%s\n\n%s", header, md), nil
+	return fmt.Sprintf("%s\n%s", header, md), nil
 }
 
 func (n *NewsModal) Init() tea.Cmd {
@@ -162,8 +193,6 @@ func (n *NewsModal) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case 4:
 			statusMsg = " Done"
 			shared.UserLog.Info(statusMsg)
-			// BUG: This isn't working, UI gets stuck on "scraping" message.
-			// No idea why
 			return n, func() tea.Msg { return UpdateContentMsg(*n.Article) }
 		}
 
