@@ -54,6 +54,9 @@ func (d *Dashboard) Init() tea.Cmd {
 
 	newsTable := table.New(table.WithFocused(false))
 
+	accentColor := shared.Koanf.String("theme.accentColor")
+	log.Infof("Accent Color: %s", accentColor)
+
 	foucsedInnerStyle := table.Styles{
 		Header: shared.Renderer.NewStyle().
 			Align(lipgloss.Center).
@@ -65,7 +68,7 @@ func (d *Dashboard) Init() tea.Cmd {
 
 	unfocusedInnerStyle := table.Styles{
 		Header: shared.Renderer.NewStyle().
-			BorderForeground(lipgloss.Color("#703FFD")).
+			BorderForeground(lipgloss.Color(accentColor)).
 			Bold(false),
 		Cell:     shared.Renderer.NewStyle(),
 		Selected: shared.Renderer.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFF")),
@@ -74,7 +77,7 @@ func (d *Dashboard) Init() tea.Cmd {
 	d.focusedStyle = TableStyle{
 		innerStyle: foucsedInnerStyle,
 		outerStyle: shared.Renderer.NewStyle().
-			BorderForeground(lipgloss.Color("#703FFD")).
+			BorderForeground(lipgloss.Color(accentColor)).
 			Border(lipgloss.NormalBorder()),
 	}
 
@@ -287,7 +290,9 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (d *Dashboard) View() string {
-	foucsedBorder := shared.Renderer.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color("#703FFD"))
+	accentColor := shared.Koanf.String("theme.accentColor")
+
+	foucsedBorder := shared.Renderer.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color(accentColor))
 	unfocusedBorder := shared.Renderer.NewStyle().Border(lipgloss.NormalBorder())
 
 	var styledTables []string

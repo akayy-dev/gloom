@@ -145,12 +145,14 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m MainModel) View() string {
 	tab := m.tabs[m.activeTab].model
 
+	accentColor := shared.Koanf.String("theme.accentColor")
+
 	// build tabbar
 	var b strings.Builder
 	for i, t := range m.tabs {
 		var tabText string
 		if i == m.activeTab {
-			bg := shared.Renderer.NewStyle().Background(lipgloss.Color("#703FFD"))
+			bg := shared.Renderer.NewStyle().Background(lipgloss.Color(accentColor))
 			tabText = bg.Render(fmt.Sprintf(" (%d) %s ", i+1, t.name))
 		} else {
 			tabText = fmt.Sprintf(" (%d) %s ", i+1, t.name)
