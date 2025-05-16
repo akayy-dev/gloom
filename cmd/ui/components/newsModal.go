@@ -84,6 +84,7 @@ func (n *NewsModal) styleArticle() (string, error) {
 
 		// NOTE: For some reason there needs to be two newlines for summary to render on a different line
 		// than published. Don't know why but if it works it works
+
 		header, err = n.styler.Render(fmt.Sprintf("# %s\n## %s\n*Published: %s* \n\n  Summary \n %s",
 			n.Article.Title,
 			n.Article.Source,

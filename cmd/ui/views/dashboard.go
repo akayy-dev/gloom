@@ -95,8 +95,7 @@ func (d *Dashboard) Init() tea.Cmd {
 
 	d.tables[0].Focus()
 
-	var watchlist []string
-	watchlist = append(watchlist, "SPY", "FEZ", "AAPL")
+	watchlist := shared.Koanf.Strings("dashboard.tickers")
 	return tea.Batch(scraping.GetCommodities,
 		scraping.GetAllNews,
 		func() tea.Msg { return scraping.CommodityUpdateTick() },
@@ -141,8 +140,8 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		stockColumns := []table.Column{
 			{Title: "Symbol", Width: int(float64(topTablesWidth) * 1 / 2)},
-			{Title: "7D", Width: int(float64(priceMovementColumnWidth) * 1 / 6)},
-			{Title: "1D", Width: int(float64(topTablesWidth) * 1 / 6)},
+			{Title: "Symbol", Width: int(float64(priceMovementColumnWidth) * 1 / 6)},
+			{Title: "SMA (50d)", Width: int(float64(topTablesWidth) * 1 / 6)},
 			{Title: "Price", Width: int(float64(topTablesWidth) * 1 / 6)},
 		}
 
@@ -279,9 +278,9 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var rows []table.Row
 		for _, row := range msg {
 			rows = append(rows, table.Row{
-				row.Ticker, "", "", fmt.Sprintf("$%.2f", row.TngoLast),
+				row.ShortName, row.Symbol, fmt.Sprintf("$%.2f", row.Quote.FiftyDayAverage), fmt.Sprintf("$%.2f", row.RegularMarketPreviousClose),
 			})
-			shared.UserLog.Infof("Adding row for %s", row.Ticker)
+			shared.UserLog.Infof("Adding row for %s", row.Symbol)
 		}
 		d.tables[1].SetRows(rows)
 	}
