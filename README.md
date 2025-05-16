@@ -11,10 +11,9 @@ To run Gloom, you need to set the following environment variables:
 
 | Variable Name | Description                                            |
 |---------------|--------------------------------------------------------|
-| `TIINGO_KEY`  | API Key for accessing stock data                       |
 | `GEMINI_KEY`  | API Key for using Google Gemini to web scrape articles |
-| `SSH_HOST`    | URL to expose the SSH server                           |
-| `SSH_PORT`    | Port to expose the SSH server                           |
+| `SSH_HOST`    | URL to expose the SSH server (optional                 |
+| `SSH_PORT`    | Port to expose the SSH server (optional)               |
 
 Make sure to set these variables in your environment before starting the application.
 
