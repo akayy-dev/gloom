@@ -124,17 +124,20 @@ func PromptNewsURL(article *NewsArticle, progressChan *chan int, ctx context.Con
 		genai.Blob{MIMEType: "text/html", Data: htmlBytes},
 		genai.Text(`
 		You are a helpful AI assistant for webscraping.
-		 I will send you the HTML content of an news website, your job is to convert the article from HTML to markdown.
-		 Make sure you ONLY format the article, do not format the advertisements on the page or any of the article suggestions.
+		I will send you the HTML content of an news website, your job is to convert the article from HTML to markdown.
+		Make sure you ONLY format the article, do not format the advertisements on the page or any of the article suggestions.
 		 Also please do not include the metadata in your article like the title, time of publication, or author.
-		 It should be noted that this text will be displayed in a terminal
-		 window, so you should not include any HTML entities in the outputted
-		 JSON, just format those entities into the characers/strings they represent.
+		Formatting should not just copy the text, but make use of the multitude of features that markdown offers,
+		including matching <h1>-<h6> tags with their appropriate heading in markdown,
+		along with rendering lists and tables, as well as anything else that can be properly represented in markdown.
+		It should be noted that this text will be displayed in a terminal
+		window, so you should not include any HTML entities in the outputted
+		JSON, just format those entities into the characers/strings they represent.
 		Format your responses in JSON like this:
 		{
 			"success": true // whether or not you were able to successfully access and scrape the articles full contents
 			"bullets": []string // up to 5 bullet points summarizing the article
-			"content": <CONTENT> // the content of the article in a string
+			"content": <CONTENT> // the content of the article in a markdown formatted string
 		}
 		`),
 	}
