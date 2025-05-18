@@ -1,5 +1,7 @@
 ## Features
 
+![Screenshot of gloom dashboard](./assets/Application.png)
+
 Gloom is an open-source financial terminal designed to provide users with powerful tools for financial analysis and data visualization. Key features include:
 
 - **Real-time Market Data**: Access live market data for stocks, commodities, and more.
