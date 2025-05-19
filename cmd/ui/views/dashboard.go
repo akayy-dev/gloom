@@ -140,9 +140,9 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		stockColumns := []table.Column{
 			{Title: "Symbol", Width: int(float64(topTablesWidth) * 1 / 2)},
-			{Title: "Symbol", Width: int(float64(priceMovementColumnWidth) * 1 / 6)},
-			{Title: "SMA (50d)", Width: int(float64(topTablesWidth) * 1 / 6)},
-			{Title: "Price", Width: int(float64(topTablesWidth) * 1 / 6)},
+			{Title: "SMA (50d)", Width: int(float64(topTablesWidth) * 2 / 10)},
+			{Title: "Price", Width: int(float64(topTablesWidth) * 2 / 10)},
+			{Title: "%", Width: int(float64(topTablesWidth) * 1 / 10)},
 		}
 
 		d.tables[1].SetColumns(stockColumns)
@@ -277,8 +277,23 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		shared.UserLog.Info("Got stock data")
 		var rows []table.Row
 		for _, row := range msg {
+			var color string
+
+			// manually add ANSI color codes, lipgloss messes up foramtting.
+			// TODO: Possibly implement this hack with the commodities table?
+			if row.RegularMarketChange > 0 {
+				color = "\033[38;5;46m" // green
+			} else {
+				color = "\033[38;5;196m" // red
+			}
+
 			rows = append(rows, table.Row{
-				row.ShortName, row.Symbol, fmt.Sprintf("$%.2f", row.Quote.FiftyDayAverage), fmt.Sprintf("$%.2f", row.RegularMarketPreviousClose),
+				fmt.Sprintf("%s%s (%s)", color, row.ShortName, row.Symbol),
+				fmt.Sprintf("$%.2f", row.Quote.FiftyDayAverage),
+				fmt.Sprintf("$%.2f", row.RegularMarketPrice),
+				// NOTE: Adding return-to-normal escape code (\033[0m) breaks table width, doesn't matter though,
+				// seems lipgloss can handle it
+				fmt.Sprintf("%.2f", row.RegularMarketChange),
 			})
 			shared.UserLog.Infof("Adding row for %s", row.Symbol)
 		}
