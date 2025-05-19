@@ -18,8 +18,10 @@ import (
 // Message for when the article is finished scraping
 type UpdateContentMsg scraping.NewsArticle
 
+// Sends the progress of scraping to Update()
 type UpdateStatusMsg int
 
+// Pop-up model displaying news
 type NewsModal struct {
 	Article *scraping.NewsArticle
 	// width
@@ -85,7 +87,7 @@ func (n *NewsModal) styleArticle() (string, error) {
 		// NOTE: For some reason there needs to be two newlines for summary to render on a different line
 		// than published. Don't know why but if it works it works
 
-		header, err = n.styler.Render(fmt.Sprintf("# %s\n## %s\n*Published: %s* \n\n  Summary \n %s",
+		header, err = n.styler.Render(fmt.Sprintf("# %s\n## %s\n*Published: %s* \n\n  Summary \n %s \n ---",
 			n.Article.Title,
 			n.Article.Source,
 			n.Article.PublicationDate.Format("01/02/2006"),
@@ -105,6 +107,8 @@ func (n *NewsModal) styleArticle() (string, error) {
 }
 
 func (n *NewsModal) Init() tea.Cmd {
+	// SECTION: Load markdown theme based on theme options
+
 	// initialize viewport with full width but minimal height
 	n.vp = viewport.New(n.W, 1)
 	n.vp.Style = shared.Renderer.NewStyle().
@@ -115,7 +119,7 @@ func (n *NewsModal) Init() tea.Cmd {
 	// initialize glamour shared.Renderer
 	var err error
 	n.styler, err = glamour.NewTermRenderer(
-		glamour.WithAutoStyle(),
+		glamour.WithStyles(shared.CreateMarkdownUserConfig()),
 		glamour.WithWordWrap(n.W-5),
 	)
 	if err != nil {
@@ -147,6 +151,8 @@ func (n *NewsModal) Init() tea.Cmd {
 		n.vp.Height = n.H
 		return nil
 	}
+
+
 }
 
 func (n *NewsModal) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -180,7 +186,6 @@ func (n *NewsModal) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var statusMsg string
 		switch msg {
 		case -1: // error case
-			shared.UserLog.Error(" Error occured while scraping article, closing context")
 			statusMsg = " An error occured"
 			n.newsCtxCancel()
 		case 0:
