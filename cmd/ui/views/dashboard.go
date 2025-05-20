@@ -219,15 +219,14 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		for _, cmdty := range msg {
 			var color string
 			if cmdty.OneDayMovement >= 0 {
-				color = "#30FF1E"
+				color = "\033[38;5;46m" // green
 			} else {
-				color = "#FF211D"
+				color = "\033[38;5;196m" // red
 			}
 
-			style := shared.Renderer.NewStyle().Foreground(lipgloss.Color(color))
 			rows = append(rows, table.Row{
 				// NOTE: Attempting to add color to other columns results in visual bug.
-				style.Render(cmdty.Name), fmt.Sprintf("%.2f%%", cmdty.OneDayMovement), fmt.Sprintf("%.2f%%", cmdty.WeeklyMovement), fmt.Sprintf("$%.2f", cmdty.Price),
+				fmt.Sprintf("%s%s", color, cmdty.Name), fmt.Sprintf("%.2f%%", cmdty.OneDayMovement), fmt.Sprintf("%.2f%%", cmdty.WeeklyMovement), fmt.Sprintf("$%.2f", cmdty.Price),
 			})
 		}
 		d.tables[0].SetRows(rows)
