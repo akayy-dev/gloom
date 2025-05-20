@@ -1,7 +1,7 @@
 {
 	"dashboard": {
 		"tickers": ["SPY", "FEZ", "AAPL", "AMZN", "GOOGL", "MSFT", "NVDA", "META"]
-	}
+	},
 	"news": {
 		"rss_feeds": [
 			"https://www.nasdaq.com/feed/nasdaq-original/rss.xml"

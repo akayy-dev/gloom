@@ -1,12 +1,16 @@
-## Features
+# gloom - a CLI financial terminal
 
 ![Screenshot of gloom dashboard](./assets/Application.png)
 
 Gloom is an open-source financial terminal designed to provide users with powerful tools for financial analysis and data visualization. Key features include:
 
+## Features
+
 - **Real-time Market Data**: Access live market data for stocks, commodities, and more.
-- **News Aggregation**: Utilize RSS to read all of your financial news in one place
-- **Open Source**: Fully open-source and customizable to suit your needs.
+![Price tracking feature screenshot](./assets/AssetPrices.png)
+- **News Aggregation**: Utilize Google Gemini to scrape all RSS news articles and read them in one place.
+![Screenshot of news feature](./assets/News.png)
+- **Open Source**: Fully open-source and customizable to suit your needs, view the [default configuration](./internal/shared/config/default.json) to get started.
 
 ## Environment Variables
 To run Gloom, you need to set the following environment variables:

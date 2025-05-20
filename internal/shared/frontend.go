@@ -2,7 +2,6 @@
 package shared
 
 import (
-	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/log"
@@ -27,12 +26,6 @@ NOTE: HELPER FUNCTIONS FOR GLAMOUR THEMES“
 func boolPtr(b bool) *bool       { return &b }
 func stringPtr(s string) *string { return &s }
 func uintPtr(u uint) *uint       { return &u }
-
-// Basically a tea.Model with a method to get the current keybindings.
-type MappedModel interface {
-	tea.Model
-	GetKeys() key.Binding
-}
 
 var (
 	UserLog  *log.Logger
