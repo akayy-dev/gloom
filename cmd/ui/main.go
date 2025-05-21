@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/help"
+	"github.com/charmbracelet/bubbles/key"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -151,22 +152,21 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		activeTab:      m.activeTab,
 		overlayManager: m.overlayManager,
 		overlayOpen:    m.overlayOpen,
-		Width: m.Width,
+		Width:          m.Width,
 	}
 	return updatedModel, cmd
 
 }
 
-func RenderHelp(keys help.KeyMap, width int) string {
+func RenderHelp(keys []key.Binding, width int) string {
 	var b strings.Builder
 
 	accentColor := shared.Koanf.String("theme.accentColor")
 
-
 	boldStyle := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color(accentColor))
-	for _, binds := range keys.ShortHelp() {
+	for _, binds := range keys {
 		b.WriteString(fmt.Sprintf("%s - %s ", boldStyle.Render(binds.Help().Key), binds.Help().Desc))
 	}
 
@@ -191,10 +191,32 @@ func (m MainModel) View() string {
 		b.WriteString(tabText)
 	}
 	if !m.overlayOpen {
-		// var activeKeyMap = m.tabs[m.activeTab].model.GetKeys()
-		return lipgloss.JoinVertical(0, b.String(), tab.View(), RenderHelp(tab.GetKeys(), m.Width))
+		// NOTE: Can't hardcode the help keys forever, going to have to refactor this, and probably
+		// the whole help dialog framework to make this more exendable, but this will work for now.
+		return lipgloss.JoinVertical(0, b.String(), tab.View(), RenderHelp(tab.GetKeys().ShortHelp(), m.Width))
 	} else {
-		return m.overlayManager.View()
+		var keyBinds = []key.Binding{
+			key.NewBinding(
+				key.WithKeys("esc"),
+				key.WithHelp("esc", "exit overlay"),
+			),
+			key.NewBinding(
+				key.WithKeys("j"),
+				key.WithHelp("j", "scroll down"),
+			),
+			key.NewBinding(
+				key.WithKeys("k"),
+				key.WithHelp("k", "scroll up"),
+			),
+		}
+
+		screen := m.overlayManager.View()
+
+		lines := strings.Split(screen, "\n")
+
+		screen = strings.Join(lines[:len(lines) - 1], "\n")
+
+		return lipgloss.JoinVertical(0, screen, RenderHelp(keyBinds, m.Width))
 	}
 }
 

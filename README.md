@@ -6,8 +6,6 @@ Gloom is an open-source financial terminal designed to provide users with powerf
 
 ## Features
 
-- **Real-time Market Data**: Access live market data for stocks, commodities, and more.
-![Price tracking feature screenshot](./assets/AssetPrices.png)
 - **News Aggregation**: Utilize Google Gemini to scrape all RSS news articles and read them in one place.
 ![Screenshot of news feature](./assets/News.png)
 - **Open Source**: Fully open-source and customizable to suit your needs, view the [default configuration](./internal/shared/config/default.json) to get started.
