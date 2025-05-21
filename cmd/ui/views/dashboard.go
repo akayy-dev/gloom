@@ -11,6 +11,8 @@ import (
 	"gloomberg/internal/shared"
 	"gloomberg/internal/stocks"
 
+	"github.com/charmbracelet/bubbles/help"
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/log"
@@ -110,7 +112,7 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		d.width = msg.Width
-		d.height = msg.Height
+		d.height = msg.Height - 1
 
 		// Redraw tables
 
@@ -300,6 +302,50 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return d, cmd
+}
+
+type DashboardKeyMap struct {
+	CycleForward  key.Binding
+	CycleBackward key.Binding
+	Up            key.Binding
+	Down          key.Binding
+	Select        key.Binding
+}
+
+func (dm DashboardKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{dm.Up, dm.Down, dm.Select, dm.CycleForward}
+}
+
+func (dm DashboardKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{dm.Up, dm.Down, dm.Select},
+		{dm.CycleForward, dm.CycleBackward},
+	}
+}
+
+func (d *Dashboard) GetKeys() help.KeyMap { // TODO: Change to have actual type safety
+	keymap := DashboardKeyMap{
+		CycleForward: key.NewBinding(
+			key.WithHelp("<tab>", "Cycle forward"),
+		),
+		CycleBackward: key.NewBinding(
+			key.WithKeys("shift+tab"),
+			key.WithHelp("<shift+tab>", "Cycle backward"),
+		),
+		Up: key.NewBinding(
+			key.WithKeys("k", "up"),
+			key.WithHelp("k/↑", "Move up"),
+		),
+		Down: key.NewBinding(
+			key.WithKeys("j", "down"),
+			key.WithHelp("j/↓", "Move down"),
+		),
+		Select: key.NewBinding(
+			key.WithKeys("enter"),
+			key.WithHelp("<enter>", "Select entry"),
+		),
+	}
+	return keymap
 }
 
 func (d *Dashboard) View() string {

@@ -16,6 +16,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/charmbracelet/bubbles/help"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/log"
@@ -31,7 +33,7 @@ import (
 
 type Tab struct {
 	name  string
-	model tea.Model
+	model MappedModel
 }
 
 type ModalCloseMsg bool
@@ -46,9 +48,18 @@ type MainModel struct {
 	overlayManager *overlay.Model
 	// whether or not an overlay is open
 	overlayOpen bool
+	// Help Menu
+	Help help.Model
+	// For aligning
+	Width int
 }
 
 type TabChangeMsg int
+
+type MappedModel interface {
+	tea.Model
+	GetKeys() help.KeyMap // TODO: Change this to have actual type safety.
+}
 
 func (m MainModel) Init() tea.Cmd {
 	// SECTION: Setup Configuration
@@ -91,6 +102,9 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		_, cmd = m.overlayManager.Foreground.Update(msg)
 	}
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.Width = msg.Width
+		shared.UserLog.Infof("Resizign width to %d", m.Width)
 	case tea.KeyMsg:
 		for i, _ := range m.tabs {
 			// run if key index is equal to key pressed (accounting for 0 index shift)
@@ -137,9 +151,26 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		activeTab:      m.activeTab,
 		overlayManager: m.overlayManager,
 		overlayOpen:    m.overlayOpen,
+		Width: m.Width,
 	}
 	return updatedModel, cmd
 
+}
+
+func RenderHelp(keys help.KeyMap, width int) string {
+	var b strings.Builder
+
+	accentColor := shared.Koanf.String("theme.accentColor")
+
+
+	boldStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color(accentColor))
+	for _, binds := range keys.ShortHelp() {
+		b.WriteString(fmt.Sprintf("%s - %s ", boldStyle.Render(binds.Help().Key), binds.Help().Desc))
+	}
+
+	return lipgloss.PlaceHorizontal(width, lipgloss.Center, b.String())
 }
 
 func (m MainModel) View() string {
@@ -160,7 +191,8 @@ func (m MainModel) View() string {
 		b.WriteString(tabText)
 	}
 	if !m.overlayOpen {
-		return lipgloss.JoinVertical(0, b.String(), tab.View())
+		// var activeKeyMap = m.tabs[m.activeTab].model.GetKeys()
+		return lipgloss.JoinVertical(0, b.String(), tab.View(), RenderHelp(tab.GetKeys(), m.Width))
 	} else {
 		return m.overlayManager.View()
 	}
@@ -233,7 +265,7 @@ func main() {
 		shared.UserLog.SetOutput(logFile)
 		log.SetOutput(logFile)
 
-		var dash tea.Model = &views.Dashboard{
+		var dash MappedModel = &views.Dashboard{
 			Name: "Dashboard A",
 		}
 
@@ -318,7 +350,7 @@ func setupSSHApplication(s ssh.Session) (tea.Model, []tea.ProgramOption) {
 		}
 	}()
 
-	var dash tea.Model = &views.Dashboard{
+	var dash MappedModel = &views.Dashboard{
 		Name: "Dashboard A",
 	}
 
