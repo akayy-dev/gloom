@@ -22,6 +22,14 @@ import (
 	"google.golang.org/api/option"
 )
 
+// Struct that the channel uses to send a status code along with additional information
+type StatusUpdate struct {
+	// Status Code, negative numbers generally mean an error
+	StatusCode int
+	// if an error is raised, the error as a string will be put here 
+	StatusMessage string
+}
+
 type NewsUpdate []NewsArticle
 
 type NewsArticle struct {
@@ -53,7 +61,7 @@ func sanitizeJSON(input []byte) []byte {
 // NOTE: Currently returns a too many requests error on a lot of yahoo finance articles.
 // my buest guess as to why this happens is because http.Get is just a curl wrapper, and without
 // a proper user agent yahoo blocks requests. the solution to this is to migrate to colly.
-func PromptNewsURL(article *NewsArticle, progressChan *chan int, ctx context.Context) {
+func PromptNewsURL(article *NewsArticle, progressChan *chan StatusUpdate, ctx context.Context) {
 	client, err := genai.NewClient(ctx, option.WithAPIKey(os.Getenv("GEMINI_KEY")))
 
 	if err != nil {
@@ -65,14 +73,19 @@ func PromptNewsURL(article *NewsArticle, progressChan *chan int, ctx context.Con
 	model := client.GenerativeModel("gemini-2.0-flash")
 	model.ResponseMIMEType = "application/json"
 
-	(*progressChan) <- 0
+	(*progressChan) <- StatusUpdate{
+		StatusCode: 0,
+	}
 
 	log.Infof("Requesting content from %s", article.URL)
 
 	htmlReq, err := http.NewRequest("GET", article.URL, nil)
 	if err != nil {
 		log.Errorf("Error while creating http request: %s", err)
-		(*progressChan) <- -1
+		(*progressChan) <- StatusUpdate{
+			StatusCode: -1,
+			StatusMessage: err.Error(),
+		}
 		return
 	}
 
@@ -84,27 +97,40 @@ func PromptNewsURL(article *NewsArticle, progressChan *chan int, ctx context.Con
 		// check for timeout error
 		if os.IsTimeout(err) {
 			log.Error("HTTP request timed out")
-			(*progressChan) <- -1
+			(*progressChan) <- StatusUpdate{
+				StatusCode: -1,
+				StatusMessage: "HTTP request timed out",
+			}
 			return
 		} else if errors.Is(err, context.DeadlineExceeded) {
 			log.Error("HTTP request context deadline exceeded")
-			(*progressChan) <- -1
+			(*progressChan) <- StatusUpdate{
+				StatusCode: -1,
+				StatusMessage: "HTTP request context deadline exceeded",
+			}
 			return
 		} else {
 			log.Errorf("Error while getting article: %s", err)
-			(*progressChan) <- -1
+			(*progressChan) <- StatusUpdate{
+				StatusCode: -1,
+				StatusMessage: err.Error(),
+			}
 			return
 		}
 
 	}
 
 	if htmlSrc.ContentLength > 5*1024*1024 { // 5 MB
-		log.Error("HTML page too large, cancelling request")
-		(*progressChan) <- -1
+		(*progressChan) <- StatusUpdate{
+			StatusCode: -1,
+			StatusMessage: "HTML page too large, cancelling request",
+		}
 		return
 	}
 
-	(*progressChan) <- 1
+	(*progressChan) <- StatusUpdate{
+		StatusCode: 1,
+	}
 
 	log.Info("Request was successful")
 	defer htmlSrc.Body.Close()
@@ -113,11 +139,16 @@ func PromptNewsURL(article *NewsArticle, progressChan *chan int, ctx context.Con
 	htmlBytes, err := io.ReadAll(htmlSrc.Body)
 	if err != nil {
 		log.Errorf("Error encountered while reading HTML content: %s", err)
-		(*progressChan) <- -1
+		(*progressChan) <- StatusUpdate{
+			StatusCode: 1,
+			StatusMessage: err.Error(),
+		}
 		return
 	}
 
-	(*progressChan) <- 2
+	(*progressChan) <- StatusUpdate{
+		StatusCode: 2,
+	}
 
 	// start the gemini request
 	req := []genai.Part{
@@ -146,17 +177,25 @@ func PromptNewsURL(article *NewsArticle, progressChan *chan int, ctx context.Con
 	resp, err := model.GenerateContent(ctx, req...)
 	if err != nil {
 		log.Errorf("Error while generating content: %s", err)
-		(*progressChan) <- -1
+		(*progressChan) <- StatusUpdate{
+			StatusCode:    -1,
+			StatusMessage: "Error while generating content",
+		}
 		if errors.Is(err, context.DeadlineExceeded) {
 			log.Error("Gemini API call timeout exceeded")
 		} else {
 			log.Errorf("Error while generating content: %s", err)
 		}
-		(*progressChan) <- -1
+		(*progressChan) <- StatusUpdate{
+			StatusCode:    -1,
+			StatusMessage: err.Error(),
+		}
 		return
 	}
 
-	(*progressChan) <- 3
+	(*progressChan) <- StatusUpdate{
+		StatusCode: 3,
+	}
 
 	// TODO: Marshal the JSON response to a struct and return an article update message.
 	var response GeminiResponse
@@ -173,13 +212,19 @@ func PromptNewsURL(article *NewsArticle, progressChan *chan int, ctx context.Con
 				article.Readable = true
 				article.Bullets = response.Bullets
 			} else {
-				(*progressChan) <- -1
+				(*progressChan) <- StatusUpdate{
+					StatusCode: -1,
+					StatusMessage: "Gemini was unable to parse the article",
+				}
 				return
 			}
 		}
 	}
 
-	(*progressChan) <- 4
+	(*progressChan) <- StatusUpdate{
+		StatusCode: 4,
+		StatusMessage: "Completed",
+	}
 
 	close(*progressChan)
 	log.Info("Finished talking to Gemini, closing channels.")

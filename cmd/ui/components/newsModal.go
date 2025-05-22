@@ -19,7 +19,7 @@ import (
 type UpdateContentMsg scraping.NewsArticle
 
 // Sends the progress of scraping to Update()
-type UpdateStatusMsg int
+type UpdateStatusMsg scraping.StatusUpdate
 
 // Pop-up model displaying news
 type NewsModal struct {
@@ -43,11 +43,11 @@ type NewsModal struct {
 	statusMessage string
 
 	// channel for progress updates for newsscraping
-	progressChan chan int
+	progressChan chan scraping.StatusUpdate
 }
 
 // begin newsscraping
-func scrapeNews(article *scraping.NewsArticle, status *chan int, ctx context.Context) tea.Cmd {
+func scrapeNews(article *scraping.NewsArticle, status *chan scraping.StatusUpdate, ctx context.Context) tea.Cmd {
 	log.Info("scrapeNews CMD")
 	return func() tea.Msg {
 		shared.UserLog.Info("scrapeNews Cmd run")
@@ -130,7 +130,7 @@ func (n *NewsModal) Init() tea.Cmd {
 	if !n.Article.Readable {
 		shared.UserLog.Info("Article not readable, loading content")
 		n.loading = true
-		n.progressChan = make(chan int)
+		n.progressChan = make(chan scraping.StatusUpdate)
 
 		var ctx context.Context
 		ctx, n.newsCtxCancel = context.WithCancel(context.Background())
@@ -151,7 +151,6 @@ func (n *NewsModal) Init() tea.Cmd {
 		n.vp.Height = n.H
 		return nil
 	}
-
 
 }
 
@@ -184,7 +183,7 @@ func (n *NewsModal) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// TODO: Modify code to constantly call Update with an UpdateStatusMsg,
 		// do this until loading is finished, then call UpdateContentMsg
 		var statusMsg string
-		switch msg {
+		switch msg.StatusCode {
 		case -1: // error case
 			statusMsg = " An error occured"
 			n.newsCtxCancel()
