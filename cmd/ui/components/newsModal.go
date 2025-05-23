@@ -185,7 +185,8 @@ func (n *NewsModal) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var statusMsg string
 		switch msg.StatusCode {
 		case -1: // error case
-			statusMsg = " An error occured"
+			// NOTE: Add red bold formatting to error message
+			statusMsg = fmt.Sprintf(" An error occured\n%s", msg.StatusMessage)
 			n.newsCtxCancel()
 		case 0:
 			statusMsg = "󰖟 Initialized scraping protocol"

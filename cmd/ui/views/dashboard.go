@@ -45,6 +45,19 @@ type Dashboard struct {
 	articleMap map[int]scraping.NewsArticle
 }
 
+func commodityUpdateTick() tea.Cmd {
+	return tea.Tick(5*time.Second, func(t time.Time) tea.Msg {
+		return scraping.GetCommodities()
+	})
+}
+// Update the stock prices every 5 seconds.
+func stockUpdateTick(symbols []string) tea.Cmd {
+	log.Info("stockUpdateTick")
+	return tea.Tick(5*time.Second, func(t time.Time) tea.Msg {
+		return stocks.GetCurrentOHLCV(symbols)
+	})
+}
+
 func (d *Dashboard) Init() tea.Cmd {
 	// make article map
 	d.articleMap = make(map[int]scraping.NewsArticle)
@@ -100,7 +113,7 @@ func (d *Dashboard) Init() tea.Cmd {
 	watchlist := shared.Koanf.Strings("dashboard.tickers")
 	return tea.Batch(scraping.GetCommodities,
 		scraping.GetAllNews,
-		func() tea.Msg { return scraping.CommodityUpdateTick() },
+		func() tea.Msg { return commodityUpdateTick() },
 		// TODO: Find a way to dynamically get the tickers to search, perhaps a config file or
 		// database entry for user preferences?
 		func() tea.Msg { return stocks.GetCurrentOHLCV(watchlist) },
@@ -233,7 +246,7 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		d.tables[0].SetRows(rows)
 		shared.UserLog.Info("Got commodity data")
-		return d, scraping.CommodityUpdateTick()
+		return d, commodityUpdateTick()
 
 	case scraping.NewsUpdate:
 		shared.UserLog.Info("Got news update")
@@ -299,6 +312,7 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			shared.UserLog.Infof("Adding row for %s", row.Symbol)
 		}
 		d.tables[1].SetRows(rows)
+		return d, stockUpdateTick(shared.Koanf.Strings("dashboard.tickers"))
 	}
 
 	return d, cmd
@@ -326,7 +340,7 @@ func (dm DashboardKeyMap) FullHelp() [][]key.Binding {
 func (d *Dashboard) GetKeys() help.KeyMap { // TODO: Change to have actual type safety
 	keymap := DashboardKeyMap{
 		CycleForward: key.NewBinding(
-			key.WithHelp("<tab>", "Cycle forward"),
+			key.WithHelp("<tab>", "Switch Focus"),
 		),
 		CycleBackward: key.NewBinding(
 			key.WithKeys("shift+tab"),

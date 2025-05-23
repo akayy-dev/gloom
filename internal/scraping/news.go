@@ -65,7 +65,23 @@ func PromptNewsURL(article *NewsArticle, progressChan *chan StatusUpdate, ctx co
 	client, err := genai.NewClient(ctx, option.WithAPIKey(os.Getenv("GEMINI_KEY")))
 
 	if err != nil {
-		log.Errorf("Error while creating Gemini Client: %s", err)
+		// NOTE: This does not seem to work, the screen shows all the other
+		// status messages then throws up an error with the error code,
+		// technically not broken since it shows the error code,
+		// I'll worry about it later
+		if strings.Contains(err.Error(), "API key not valid") {
+			log.Errorf("Invalid API key provided for Gemini Client: %s", err)
+			(*progressChan) <- StatusUpdate{
+				StatusCode: -1,
+				StatusMessage: "Gemini key is not valid, did you set $GEMINI_KEY",
+			}
+		} else {
+			log.Errorf("Error while creating Gemini Client: %s", err)
+			(*progressChan) <- StatusUpdate{
+				StatusCode: -1,
+				StatusMessage: err.Error(),
+			}
+		}
 		return
 	}
 
