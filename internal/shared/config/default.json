@@ -1,13 +1,17 @@
+// This is a custom implementation of JSON that allows for single line comments starting with //
 {
 	"dashboard": {
+		// what stock tickers to show in the watchlist, sourced from yahoofinance
 		"tickers": ["SPY", "FEZ", "AAPL", "AMZN", "GOOGL", "MSFT", "NVDA", "META"]
 	},
 	"news": {
 		"rss_feeds": [
+			// what RSS feeds to pull news from in the news table
 			"https://www.nasdaq.com/feed/nasdaq-original/rss.xml"
 		]
 	},
 	"theme": {
+		// accent color, used in various things, news formatting, focused table outlines, etc.
 		"accentColor": "#703FFD"
 	}
 }
