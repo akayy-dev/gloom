@@ -72,16 +72,14 @@ func (m MainModel) Init() tea.Cmd {
 
 	configFilePath := filepath.Join(configHome, ".config", "gloom", "config.json")
 	shared.UserLog.Infof("Checking for config file at path %s", configFilePath)
+
+	shared.LoadDefaultConfig()
+
 	// Check if user config file exists
 	if _, err := os.Stat(configFilePath); err == nil {
 		shared.UserLog.Infof("Config file found at %s, loading...", configFilePath)
 		shared.LoadUserConfig(configFilePath)
-	} else {
-		// if a config file isn't found, load the default one.
-		shared.UserLog.Infof("Config file not found, loading default config")
-		shared.LoadDefaultConfig()
 	}
-
 	tab := m.tabs[m.activeTab].model
 	return tea.Batch(tea.ClearScreen, tea.SetWindowTitle("gloom"), tab.Init())
 }

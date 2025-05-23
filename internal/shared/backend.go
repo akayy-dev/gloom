@@ -18,9 +18,12 @@ var (
 //go:embed config/default.json
 var defaultConfig []byte
 
+// Loads the user defined config.
 func LoadUserConfig(path string) {
 	log.Debug("Loading configuration at %s", path)
-	Koanf = koanf.New(".")
+	if Koanf == nil {
+		Koanf = koanf.New(".")
+	}
 
 	if err := Koanf.Load(file.Provider(path), json.Parser()); err != nil {
 		log.Fatalf("Error ocurred while loading config: %v", err)
@@ -29,8 +32,11 @@ func LoadUserConfig(path string) {
 
 }
 
+// Loads the default user config
 func LoadDefaultConfig() {
-	Koanf = koanf.New(".")
+	if Koanf == nil {
+		Koanf = koanf.New(".")
+	}
 
 	err := Koanf.Load(rawbytes.Provider(defaultConfig), json.Parser())
 	if err != nil {
