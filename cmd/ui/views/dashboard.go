@@ -78,7 +78,7 @@ func (d *Dashboard) Init() tea.Cmd {
 			Bold(true).
 			Foreground(lipgloss.Color("#FFFFFF")),
 		Cell:     shared.Renderer.NewStyle(),
-		Selected: shared.Renderer.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFFF")),
+		Selected: shared.Renderer.NewStyle().Bold(true).Foreground(lipgloss.Color(accentColor)),
 	}
 
 	unfocusedInnerStyle := table.Styles{
@@ -86,7 +86,7 @@ func (d *Dashboard) Init() tea.Cmd {
 			BorderForeground(lipgloss.Color(accentColor)).
 			Bold(false),
 		Cell:     shared.Renderer.NewStyle(),
-		Selected: shared.Renderer.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFF")),
+		Selected: shared.Renderer.NewStyle().Bold(true).Foreground(lipgloss.Color(accentColor)),
 	}
 
 	d.focusedStyle = TableStyle{
