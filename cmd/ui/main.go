@@ -18,6 +18,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/textinput"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -39,6 +40,12 @@ type Tab struct {
 
 type ModalCloseMsg bool
 
+type Prompt struct {
+	Model    textinput.Model
+	Prompt   string
+	Callback func(string)
+}
+
 // The "entry" model.
 type MainModel struct {
 	// pointers to all the tabs
@@ -53,12 +60,13 @@ type MainModel struct {
 	Help help.Model
 	// For aligning
 	Width int
-
 	// Whether or not the prompt is open, basically makes sure that accidentally pressing q
 	// won't exit the program
 	PromptOpen bool
 	// What the prompt is
 	PromptMessage string
+	// Prompt Model
+	input Prompt
 }
 
 type TabChangeMsg int
@@ -80,6 +88,11 @@ func (m MainModel) Init() tea.Cmd {
 	shared.UserLog.Infof("Checking for config file at path %s", configFilePath)
 
 	shared.LoadDefaultConfig()
+
+	// Load prompt model
+	m.input = Prompt{
+		Model: textinput.New(),
+	}
 
 	// Check if user config file exists
 	if _, err := os.Stat(configFilePath); err == nil {
@@ -111,6 +124,25 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Width = msg.Width
 		shared.UserLog.Infof("Resizign width to %d", m.Width)
 	case tea.KeyMsg:
+		if m.input.Model.Focused() {
+			// if the user presses escape break out of the prompt
+			if msg.String() == "esc" {
+				m.input.Model.Blur()
+			}
+			if msg.String() == "enter" {
+				m.input.Model.Blur()
+				if m.input.Callback != nil {
+					m.input.Callback(m.input.Model.Value())
+				} else {
+					log.Warn("Tried to run prompt callback but was nil, did you set the value of CallbackFunc?")
+				}
+			}
+
+			m.input.Model, cmd = m.input.Model.Update(msg)
+			break
+
+		}
+
 		for i, _ := range m.tabs {
 			// run if key index is equal to key pressed (accounting for 0 index shift)
 			if keyIndex, err := strconv.Atoi(msg.String()); err == nil && i+1 == keyIndex {
@@ -155,11 +187,17 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.overlayOpen = true
 			cmd = m.overlayManager.Foreground.Init() // so commands returned from the overlay on init run
 		}
-	case shared.OpenPromptMsg:
-		log.Info("Prompt is open")
-		m.PromptOpen = true
-		m.PromptMessage = string(msg)
-		return m, nil
+	case shared.PromptOpenMsg:
+		log.Infof("PromptOpenMsg: %s", msg.Prompt)
+
+		m.input.Model = textinput.New()
+		promptWidth := m.Width - len(msg.Prompt)
+
+		m.input.Model.Width = promptWidth
+		m.input.Model.CharLimit = promptWidth
+		m.input.Model.Focus()
+		m.input.Prompt = msg.Prompt
+		m.input.Callback = msg.CallbackFunc
 	}
 
 	updatedModel := MainModel{
@@ -169,7 +207,9 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		overlayOpen:    m.overlayOpen,
 		Width:          m.Width,
 		PromptOpen:     m.PromptOpen,
+		input:          m.input,
 	}
+
 	return updatedModel, cmd
 
 }
@@ -207,6 +247,15 @@ func (m MainModel) View() string {
 		b.WriteString(tabText)
 	}
 	if !m.overlayOpen {
+		// if the prompt is open show it
+		if m.input.Model.Focused() {
+			// prompt is bold and in accent color
+			styledPrompt := shared.Renderer.NewStyle().Foreground(lipgloss.Color(accentColor)).Bold(true).SetString(m.input.Prompt).Render()
+			// NOTE: [:2] removes the leading "> " from the styledPrompt
+			promptString := fmt.Sprintf("%s%s", styledPrompt, m.input.Model.View()[2:])
+
+			return lipgloss.JoinVertical(0, b.String(), tab.View(), promptString)
+		}
 		// NOTE: Can't hardcode the help keys forever, going to have to refactor this, and probably
 		// the whole help dialog framework to make this more exendable, but this will work for now.
 		if m.PromptOpen {
@@ -243,6 +292,9 @@ func (m MainModel) View() string {
 			return lipgloss.JoinVertical(0, screen, RenderHelp(keyBinds, m.Width))
 		}
 
+
+		// NOTE: temporary textinput test
+		return lipgloss.JoinVertical(0, screen, RenderHelp(keyBinds, m.Width))
 	}
 }
 

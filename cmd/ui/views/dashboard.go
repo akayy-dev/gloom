@@ -45,6 +45,8 @@ type Dashboard struct {
 
 	// Stock Watchlist
 	Watchlist []string
+	// Stock watchlist
+	WatchList []string
 }
 
 func commodityUpdateTick() tea.Cmd {
@@ -113,13 +115,13 @@ func (d *Dashboard) Init() tea.Cmd {
 
 	d.tables[0].Focus()
 
-	watchlist := shared.Koanf.Strings("dashboard.tickers")
+	d.WatchList = shared.Koanf.Strings("dashboard.tickers")
 	return tea.Batch(scraping.GetCommodities,
 		scraping.GetAllNews,
 		func() tea.Msg { return commodityUpdateTick() },
 		// TODO: Find a way to dynamically get the tickers to search, perhaps a config file or
 		// database entry for user preferences?
-		func() tea.Msg { return stocks.GetCurrentOHLCV(watchlist) },
+		func() tea.Msg { return stocks.GetCurrentOHLCV(d.WatchList) },
 	)
 }
 
@@ -228,11 +230,19 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return d, func() tea.Msg { return (&newsOverlay) }
 
 			}
-
 		case "a":
-			if d.focused == 1 { // only run when on the stock table
-				log.Info("Adding to watchlist")
-				return d, func() tea.Msg { return shared.OpenPromptMsg("Add to watchlist: $") }
+			// add symbol on stock table
+			if d.focused == 1 {
+				return d, func() tea.Msg {
+					return shared.PromptOpenMsg{
+						Prompt: "Add Symbol: $",
+						CallbackFunc: func(s string) {
+							// FIXME: The added stock won't run until the 5 second tick refreshes
+							log.Infof("Adding %s to watchlist", s)
+							d.WatchList = append(d.WatchList, s)
+						},
+					}
+				}
 			}
 		}
 		d.tables[d.focused], cmd = d.tables[d.focused].Update(msg)
@@ -321,7 +331,7 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			shared.UserLog.Infof("Adding row for %s", row.Symbol)
 		}
 		d.tables[1].SetRows(rows)
-		return d, stockUpdateTick(shared.Koanf.Strings("dashboard.tickers"))
+		return d, stockUpdateTick(d.WatchList)
 	}
 
 	return d, cmd

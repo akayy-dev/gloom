@@ -13,6 +13,19 @@ import (
 type ModalCloseMsg bool
 
 type OpenPromptMsg string
+// Open the prompt, the string is the user prompt
+type PromptOpenMsg struct {
+	Prompt       string
+	CallbackFunc func(string)
+}
+
+type KeyBinding struct {
+	Key string
+	// The key to display
+	KeyDisplay string
+	// The text to display to the user displaying the keybind
+	HelpText string
+}
 
 /*
 NOTE: HELPER FUNCTIONS FOR GLAMOUR THEMES“
