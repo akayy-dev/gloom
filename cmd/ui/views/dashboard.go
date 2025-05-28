@@ -236,10 +236,15 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return d, func() tea.Msg {
 					return shared.PromptOpenMsg{
 						Prompt: "Add Symbol: $",
-						CallbackFunc: func(s string) {
-							// FIXME: The added stock won't run until the 5 second tick refreshes
+						CallbackFunc: func(s string) tea.Msg {
+							// FIXME: The added stock won't show until the 5 second tick refreshes
+							// and the GetCurrentOHLCV function is run again, i'm guessing this can be fixed
+							// by making the callback func a tea.Cmd (func that returns a tea.Msg) and then
+							// returning that cmd in the main model
 							log.Infof("Adding %s to watchlist", s)
 							d.WatchList = append(d.WatchList, s)
+
+							return nil
 						},
 					}
 				}
@@ -337,49 +342,34 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return d, cmd
 }
 
-type DashboardKeyMap struct {
-	CycleForward  key.Binding
-	CycleBackward key.Binding
-	Up            key.Binding
-	Down          key.Binding
-	Select        key.Binding
-	Add           key.Binding
-}
-
 func (d *Dashboard) GetKeys() []key.Binding { // TODO: Change to have actual type safety
-	keymap := DashboardKeyMap{
-		CycleForward: key.NewBinding(
+	keyList := []key.Binding{
+		key.NewBinding(
 			key.WithHelp("<tab>", "Switch Focus"),
 		),
-		CycleBackward: key.NewBinding(
-			key.WithKeys("shift+tab"),
-			key.WithHelp("<shift+tab>", "Cycle backward"),
-		),
-		Up: key.NewBinding(
+		key.NewBinding(
 			key.WithKeys("k", "up"),
 			key.WithHelp("k/↑", "Move up"),
 		),
-		Down: key.NewBinding(
+		key.NewBinding(
 			key.WithKeys("j", "down"),
 			key.WithHelp("j/↓", "Move down"),
-		),
-		Select: key.NewBinding(
-			key.WithKeys("enter"),
-			key.WithHelp("<enter>", "Select entry"),
-		),
-		Add: key.NewBinding(
-			key.WithKeys("a"),
-			key.WithHelp("a", "add stock"),
 		),
 	}
 
 	// FIXME: This does not work, I'm assuming I have to send an Update 🙄.
 	// There should be vue-type reactive data
-	var keyList []key.Binding
 	if d.focused == 1 {
-		keyList = []key.Binding{keymap.CycleForward, keymap.Up, keymap.Down, keymap.Select}
-	} else {
-		keyList = []key.Binding{keymap.CycleForward, keymap.Up, keymap.Down, keymap.Select}
+		keyList = append(keyList, key.NewBinding(
+			key.WithHelp("a", "Add Stock"),
+			key.WithKeys("a", "add"),
+		))
+	}
+	if d.focused == 3 {
+		keyList = append(keyList, key.NewBinding(
+			key.WithHelp("<enter>", "Read article"),
+			key.WithKeys("enter", "select"),
+		))
 
 	}
 

@@ -43,7 +43,7 @@ type ModalCloseMsg bool
 type Prompt struct {
 	Model    textinput.Model
 	Prompt   string
-	Callback func(string)
+	Callback func(string) tea.Msg
 }
 
 // The "entry" model.

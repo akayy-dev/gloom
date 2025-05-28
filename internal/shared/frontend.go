@@ -16,7 +16,7 @@ type OpenPromptMsg string
 // Open the prompt, the string is the user prompt
 type PromptOpenMsg struct {
 	Prompt       string
-	CallbackFunc func(string)
+	CallbackFunc func(string) tea.Msg
 }
 
 type KeyBinding struct {
