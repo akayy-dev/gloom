@@ -11,7 +11,6 @@ import (
 	"gloomberg/internal/shared"
 	"gloomberg/internal/stocks"
 
-	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/lipgloss"
@@ -43,6 +42,9 @@ type Dashboard struct {
 	unfocusedStyle TableStyle
 	// map the row in the table to an actual news article
 	articleMap map[int]scraping.NewsArticle
+
+	// Stock Watchlist
+	Watchlist []string
 }
 
 func commodityUpdateTick() tea.Cmd {
@@ -50,6 +52,7 @@ func commodityUpdateTick() tea.Cmd {
 		return scraping.GetCommodities()
 	})
 }
+
 // Update the stock prices every 5 seconds.
 func stockUpdateTick(symbols []string) tea.Cmd {
 	log.Info("stockUpdateTick")
@@ -78,7 +81,7 @@ func (d *Dashboard) Init() tea.Cmd {
 			Bold(true).
 			Foreground(lipgloss.Color("#FFFFFF")),
 		Cell:     shared.Renderer.NewStyle(),
-		Selected: shared.Renderer.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFFF")),
+		Selected: shared.Renderer.NewStyle().Bold(true).Foreground(lipgloss.Color(accentColor)),
 	}
 
 	unfocusedInnerStyle := table.Styles{
@@ -86,7 +89,7 @@ func (d *Dashboard) Init() tea.Cmd {
 			BorderForeground(lipgloss.Color(accentColor)).
 			Bold(false),
 		Cell:     shared.Renderer.NewStyle(),
-		Selected: shared.Renderer.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFF")),
+		Selected: shared.Renderer.NewStyle().Bold(true).Foreground(lipgloss.Color(accentColor)),
 	}
 
 	d.focusedStyle = TableStyle{
@@ -225,6 +228,12 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return d, func() tea.Msg { return (&newsOverlay) }
 
 			}
+
+		case "a":
+			if d.focused == 1 { // only run when on the stock table
+				log.Info("Adding to watchlist")
+				return d, func() tea.Msg { return shared.OpenPromptMsg("Add to watchlist: $") }
+			}
 		}
 		d.tables[d.focused], cmd = d.tables[d.focused].Update(msg)
 
@@ -324,20 +333,10 @@ type DashboardKeyMap struct {
 	Up            key.Binding
 	Down          key.Binding
 	Select        key.Binding
+	Add           key.Binding
 }
 
-func (dm DashboardKeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{dm.Up, dm.Down, dm.Select, dm.CycleForward}
-}
-
-func (dm DashboardKeyMap) FullHelp() [][]key.Binding {
-	return [][]key.Binding{
-		{dm.Up, dm.Down, dm.Select},
-		{dm.CycleForward, dm.CycleBackward},
-	}
-}
-
-func (d *Dashboard) GetKeys() help.KeyMap { // TODO: Change to have actual type safety
+func (d *Dashboard) GetKeys() []key.Binding { // TODO: Change to have actual type safety
 	keymap := DashboardKeyMap{
 		CycleForward: key.NewBinding(
 			key.WithHelp("<tab>", "Switch Focus"),
@@ -358,8 +357,23 @@ func (d *Dashboard) GetKeys() help.KeyMap { // TODO: Change to have actual type 
 			key.WithKeys("enter"),
 			key.WithHelp("<enter>", "Select entry"),
 		),
+		Add: key.NewBinding(
+			key.WithKeys("a"),
+			key.WithHelp("a", "add stock"),
+		),
 	}
-	return keymap
+
+	// FIXME: This does not work, I'm assuming I have to send an Update 🙄.
+	// There should be vue-type reactive data
+	var keyList []key.Binding
+	if d.focused == 1 {
+		keyList = []key.Binding{keymap.CycleForward, keymap.Up, keymap.Down, keymap.Select}
+	} else {
+		keyList = []key.Binding{keymap.CycleForward, keymap.Up, keymap.Down, keymap.Select}
+
+	}
+
+	return keyList
 }
 
 func (d *Dashboard) View() string {

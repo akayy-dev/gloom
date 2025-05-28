@@ -12,13 +12,7 @@ import (
 // Message Events
 type ModalCloseMsg bool
 
-type KeyBinding struct {
-	Key string
-	// The key to display
-	KeyDisplay string
-	// The text to display to the user displaying the keybind
-	HelpText string
-}
+type OpenPromptMsg string
 
 /*
 NOTE: HELPER FUNCTIONS FOR GLAMOUR THEMES“

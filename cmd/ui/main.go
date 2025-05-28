@@ -53,13 +53,19 @@ type MainModel struct {
 	Help help.Model
 	// For aligning
 	Width int
+
+	// Whether or not the prompt is open, basically makes sure that accidentally pressing q
+	// won't exit the program
+	PromptOpen bool
+	// What the prompt is
+	PromptMessage string
 }
 
 type TabChangeMsg int
 
 type MappedModel interface {
 	tea.Model
-	GetKeys() help.KeyMap // TODO: Change this to have actual type safety.
+	GetKeys() []key.Binding // TODO: Change this to have actual type safety.
 }
 
 func (m MainModel) Init() tea.Cmd {
@@ -115,13 +121,19 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "Q":
 			fallthrough
 		case "q":
-			shared.UserLog.Info("Exiting on user request")
-			return m, tea.Quit
+			if !m.PromptOpen {
+				shared.UserLog.Info("Exiting on user request")
+				return m, tea.Quit
+			}
 		case "esc":
 			if m.overlayOpen {
 				shared.UserLog.Info("Exiting overlay")
 				m.overlayManager.Foreground.Update(ModalCloseMsg(true))
 				m.overlayOpen = false
+			}
+
+			if m.PromptOpen {
+				m.PromptOpen = false
 			}
 		}
 
@@ -143,6 +155,11 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.overlayOpen = true
 			cmd = m.overlayManager.Foreground.Init() // so commands returned from the overlay on init run
 		}
+	case shared.OpenPromptMsg:
+		log.Info("Prompt is open")
+		m.PromptOpen = true
+		m.PromptMessage = string(msg)
+		return m, nil
 	}
 
 	updatedModel := MainModel{
@@ -151,6 +168,7 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		overlayManager: m.overlayManager,
 		overlayOpen:    m.overlayOpen,
 		Width:          m.Width,
+		PromptOpen:     m.PromptOpen,
 	}
 	return updatedModel, cmd
 
@@ -161,7 +179,7 @@ func RenderHelp(keys []key.Binding, width int) string {
 
 	accentColor := shared.Koanf.String("theme.accentColor")
 
-	boldStyle := lipgloss.NewStyle().
+	boldStyle := shared.Renderer.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color(accentColor))
 	for _, binds := range keys {
@@ -191,7 +209,12 @@ func (m MainModel) View() string {
 	if !m.overlayOpen {
 		// NOTE: Can't hardcode the help keys forever, going to have to refactor this, and probably
 		// the whole help dialog framework to make this more exendable, but this will work for now.
-		return lipgloss.JoinVertical(0, b.String(), tab.View(), RenderHelp(tab.GetKeys().ShortHelp(), m.Width))
+		if m.PromptOpen {
+			promptStyle := shared.Renderer.NewStyle().Foreground(lipgloss.Color(shared.Koanf.String("theme.accentColor"))).Bold(true).SetString(m.PromptMessage)
+			return lipgloss.JoinVertical(0, b.String(), tab.View(), promptStyle.Render())
+		} else {
+			return lipgloss.JoinVertical(0, b.String(), tab.View(), RenderHelp(tab.GetKeys(), m.Width))
+		}
 	} else {
 		var keyBinds = []key.Binding{
 			key.NewBinding(
@@ -212,9 +235,14 @@ func (m MainModel) View() string {
 
 		lines := strings.Split(screen, "\n")
 
-		screen = strings.Join(lines[:len(lines) - 1], "\n")
+		screen = strings.Join(lines[:len(lines)-1], "\n")
 
-		return lipgloss.JoinVertical(0, screen, RenderHelp(keyBinds, m.Width))
+		if m.PromptOpen {
+			return lipgloss.JoinVertical(0, screen, "Prmpt")
+		} else {
+			return lipgloss.JoinVertical(0, screen, RenderHelp(keyBinds, m.Width))
+		}
+
 	}
 }
 
