@@ -60,13 +60,15 @@ type MainModel struct {
 	Help help.Model
 	// For aligning
 	Width int
-	// Whether or not the prompt is open, basically makes sure that accidentally pressing q
-	// won't exit the program
-	PromptOpen bool
 	// What the prompt is
 	PromptMessage string
 	// Prompt Model
 	input Prompt
+
+	// The notification text displaying
+	NotificationText string
+	// Whether or not a notification is showing
+	ShowingNotification bool
 }
 
 type TabChangeMsg int
@@ -109,16 +111,26 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// NOTE: This code was meant to keep the user from being able to send keypresses
 	// to the model while an overlay was open. the current implementation suspends ALL
 	// messages from being sent, see if you can fix this later.
-	if !m.overlayOpen {
+
+	/* NOTE: if the overlay and the prompt is closed send all messages
+	if the prompt is open send any messge that isn't a KeyMsg
+	*/
+	if !m.overlayOpen && !m.input.Model.Focused() {
 		// only send keypresses to the current tab IF we are not in a model right now
 		// BUG: When attempting to switch tabs with an ovelay open, nothing will hapen,
 		// but when the user closes the modal, then the tab will switch.
 		_, cmd = tab.Update(msg)
-	} else {
+	} else if m.overlayOpen {
 		// Send updates to the foreground if it's open.
-		// NOTE: Did not think this through, so bugs might show up.
 		_, cmd = m.overlayManager.Foreground.Update(msg)
 	}
+
+	if m.input.Model.Focused() {
+		if _, ok := msg.(tea.KeyMsg); !ok {
+			_, cmd = tab.Update(msg)
+		}
+	}
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.Width = msg.Width
@@ -128,19 +140,22 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// if the user presses escape break out of the prompt
 			if msg.String() == "esc" {
 				m.input.Model.Blur()
-			}
-			if msg.String() == "enter" {
+			} else if msg.String() == "enter" {
 				m.input.Model.Blur()
 				if m.input.Callback != nil {
-					m.input.Callback(m.input.Model.Value())
+					cmd = func() tea.Msg {
+						return m.input.Callback(m.input.Model.Value())
+					}
 				} else {
 					log.Warn("Tried to run prompt callback but was nil, did you set the value of CallbackFunc?")
 				}
+				break
+			} else {
+				m.input.Model, cmd = m.input.Model.Update(msg)
+				break
 			}
 
-			m.input.Model, cmd = m.input.Model.Update(msg)
 			break
-
 		}
 
 		for i, _ := range m.tabs {
@@ -153,7 +168,7 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "Q":
 			fallthrough
 		case "q":
-			if !m.PromptOpen {
+			if !m.input.Model.Focused() {
 				shared.UserLog.Info("Exiting on user request")
 				return m, tea.Quit
 			}
@@ -164,8 +179,8 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.overlayOpen = false
 			}
 
-			if m.PromptOpen {
-				m.PromptOpen = false
+			if m.input.Model.Focused() {
+				m.input.Model.Blur()
 			}
 		}
 
@@ -198,16 +213,28 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.input.Model.Focus()
 		m.input.Prompt = msg.Prompt
 		m.input.Callback = msg.CallbackFunc
+
+	case shared.SendNotificationMsg:
+		m.NotificationText = msg.Message
+		m.ShowingNotification = true
+		log.Info("enabled showing notification")
+		cmd = tea.Tick(time.Duration(msg.DisplayTime*int(time.Millisecond)), func(t time.Time) tea.Msg {
+			return shared.HideNotificationMsg{}
+		})
+	case shared.HideNotificationMsg:
+		m.ShowingNotification = false
+		log.Info("hiding notification")
 	}
 
 	updatedModel := MainModel{
-		tabs:           m.tabs,
-		activeTab:      m.activeTab,
-		overlayManager: m.overlayManager,
-		overlayOpen:    m.overlayOpen,
-		Width:          m.Width,
-		PromptOpen:     m.PromptOpen,
-		input:          m.input,
+		tabs:                m.tabs,
+		activeTab:           m.activeTab,
+		overlayManager:      m.overlayManager,
+		overlayOpen:         m.overlayOpen,
+		Width:               m.Width,
+		input:               m.input,
+		NotificationText:    m.NotificationText,
+		ShowingNotification: m.ShowingNotification,
 	}
 
 	return updatedModel, cmd
@@ -246,25 +273,28 @@ func (m MainModel) View() string {
 		}
 		b.WriteString(tabText)
 	}
+
+	// What text to show on the bottom
+	var bottomText string
+	var screen string
+
 	if !m.overlayOpen {
+		screen = tab.View()
 		// if the prompt is open show it
 		if m.input.Model.Focused() {
 			// prompt is bold and in accent color
 			styledPrompt := shared.Renderer.NewStyle().Foreground(lipgloss.Color(accentColor)).Bold(true).SetString(m.input.Prompt).Render()
 			// NOTE: [:2] removes the leading "> " from the styledPrompt
-			promptString := fmt.Sprintf("%s%s", styledPrompt, m.input.Model.View()[2:])
-
-			return lipgloss.JoinVertical(0, b.String(), tab.View(), promptString)
-		}
-		// NOTE: Can't hardcode the help keys forever, going to have to refactor this, and probably
-		// the whole help dialog framework to make this more exendable, but this will work for now.
-		if m.PromptOpen {
-			promptStyle := shared.Renderer.NewStyle().Foreground(lipgloss.Color(shared.Koanf.String("theme.accentColor"))).Bold(true).SetString(m.PromptMessage)
-			return lipgloss.JoinVertical(0, b.String(), tab.View(), promptStyle.Render())
+			bottomText = fmt.Sprintf("%s%s", styledPrompt, m.input.Model.View()[2:])
 		} else {
-			return lipgloss.JoinVertical(0, b.String(), tab.View(), RenderHelp(tab.GetKeys(), m.Width))
+			// render help key when prompt is not opened
+			bottomText = RenderHelp(tab.GetKeys(), m.Width)
 		}
+
 	} else {
+		// FIXME: temporary solution for showing keybinds in news modal
+		// in the future, this should be refatored so seach model manages THEIR OWN
+		// overlay logic.
 		var keyBinds = []key.Binding{
 			key.NewBinding(
 				key.WithKeys("esc"),
@@ -280,22 +310,17 @@ func (m MainModel) View() string {
 			),
 		}
 
-		screen := m.overlayManager.View()
-
-		lines := strings.Split(screen, "\n")
+		lines := strings.Split(m.overlayManager.View(), "\n")
 
 		screen = strings.Join(lines[:len(lines)-1], "\n")
+		bottomText = RenderHelp(keyBinds, m.Width)
 
-		if m.PromptOpen {
-			return lipgloss.JoinVertical(0, screen, "Prmpt")
-		} else {
-			return lipgloss.JoinVertical(0, screen, RenderHelp(keyBinds, m.Width))
-		}
-
-
-		// NOTE: temporary textinput test
-		return lipgloss.JoinVertical(0, screen, RenderHelp(keyBinds, m.Width))
 	}
+	if m.ShowingNotification && !m.input.Model.Focused() {
+		log.Infof("Showing notification text: %s", m.NotificationText)
+		bottomText = m.NotificationText
+	}
+	return lipgloss.JoinVertical(0, b.String(), screen, bottomText)
 }
 
 // Function to setup the application as an SSH server.

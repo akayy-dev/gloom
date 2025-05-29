@@ -12,7 +12,18 @@ import (
 // Message Events
 type ModalCloseMsg bool
 
+// Send a notification
+type SendNotificationMsg struct {
+	// Message to display
+	Message string
+	// Time to display the message in milliseconds
+	DisplayTime int
+}
+
+type HideNotificationMsg struct{}
+
 type OpenPromptMsg string
+
 // Open the prompt, the string is the user prompt
 type PromptOpenMsg struct {
 	Prompt       string

@@ -244,7 +244,10 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							log.Infof("Adding %s to watchlist", s)
 							d.WatchList = append(d.WatchList, s)
 
-							return nil
+							return shared.SendNotificationMsg{
+								Message:     fmt.Sprintf("Adding %s to your watchlist", s),
+								DisplayTime: 5000,
+							}
 						},
 					}
 				}

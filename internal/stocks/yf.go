@@ -18,7 +18,7 @@ func GetCurrentOHLCV(symbols []string) tea.Msg {
 	for _, ticker := range symbols {
 		q, err := equity.Get(ticker)
 		if err != nil {
-			shared.UserLog.Fatalf("Error ocurre while getting equity: %v", err)
+			shared.UserLog.Fatalf("Error ocurre while getting equity (%s): %v", ticker, err)
 		}
 		tickers = append(tickers, *q)
 	}

@@ -198,7 +198,7 @@ func (n *NewsModal) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			statusMsg = " Scraping text from article"
 		case 4:
 			statusMsg = " Done"
-			shared.UserLog.Info(statusMsg)
+			shared.UserLog.Debug(statusMsg)
 			return n, func() tea.Msg { return UpdateContentMsg(*n.Article) }
 		}
 
