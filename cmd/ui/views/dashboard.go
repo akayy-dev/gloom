@@ -235,19 +235,15 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if d.focused == 1 {
 				return d, func() tea.Msg {
 					return shared.PromptOpenMsg{
-						Prompt: "Add Symbol: $",
+						Prompt: "Search for a stock: ",
 						CallbackFunc: func(s string) tea.Msg {
-							// FIXME: The added stock won't show until the 5 second tick refreshes
-							// and the GetCurrentOHLCV function is run again, i'm guessing this can be fixed
-							// by making the callback func a tea.Cmd (func that returns a tea.Msg) and then
-							// returning that cmd in the main model
-							log.Infof("Adding %s to watchlist", s)
-							d.WatchList = append(d.WatchList, s)
-
-							return shared.SendNotificationMsg{
-								Message:     fmt.Sprintf("Adding %s to your watchlist", s),
-								DisplayTime: 5000,
+							// TODO: Create an overlay for the current search query.
+							stocklist := components.StockSuggestions{
+								SearchQuery: s,
+								Width:  d.width / 2,
+								Height: int(float64(d.height) * .8),
 							}
+							return DisplayOverlayMsg(&stocklist)
 						},
 					}
 				}

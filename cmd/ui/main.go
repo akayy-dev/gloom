@@ -197,7 +197,7 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// NOTE: The code for pressing escape to exit the overlay
 		//  is in the keypress part of this switch statement
 		if !m.overlayOpen {
-			shared.UserLog.Info("displaying news overlay")
+			shared.UserLog.Info("displaying overlay")
 			m.overlayManager = overlay.New(msg, m, overlay.Center, overlay.Center, 0, 0)
 			m.overlayOpen = true
 			cmd = m.overlayManager.Foreground.Init() // so commands returned from the overlay on init run
