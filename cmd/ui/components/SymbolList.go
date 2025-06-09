@@ -6,17 +6,13 @@ import (
 	"gloomberg/internal/shared"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"time"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/log"
-)
-
-var (
-	listStyle = shared.Renderer.NewStyle().Border(lipgloss.RoundedBorder())
 )
 
 type StockListEntry struct {
@@ -36,31 +32,32 @@ func (e StockListEntry) Description() string {
 }
 
 func (e StockListEntry) FilterValue() string {
-	return e.Title()
+	return fmt.Sprintf("%s %s", e.Name, e.StockExchange)
 }
 
 // Return all stocks accessible by FMP.
 func GetStockSuggestions(symbol string) []StockListEntry {
-	url := fmt.Sprintf("https://financialmodelingprep.com/api/v3/search?query=%s&apikey=%s", symbol, os.Getenv("FMP_KEY"))
+	// NOTE: QueryEscape formats characters like spaces so the request doesn't break.
+	url := fmt.Sprintf("https://financialmodelingprep.com/api/v3/search?query=%s&apikey=%s", url.QueryEscape(symbol), os.Getenv("FMP_KEY"))
 
 	client := http.Client{Timeout: 15 * time.Second} // The api returns a pretty big set of data, so it's best if we have it time out.
 	resp, err := client.Get(url)
 
 	if err != nil {
-		shared.UserLog.Fatal("Fatal error ocurred while requesting listed stocks from GetAllListedStocks()", err)
+		shared.UserLog.Fatal("Fatal error ocurred while requesting listed stocks from GetStockSuggestions()", err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		shared.UserLog.Fatal("Fatal error occurred while reading body in GetAllListedStocks()", err)
+		shared.UserLog.Fatal("Fatal error occurred while reading body in GetStockSuggestions()", err)
 	}
 
 	var list []StockListEntry
 	err = json.Unmarshal(body, &list)
 
 	if err != nil {
-		shared.UserLog.Fatal("Fatal error occurred while Unmarshaling StockList in GetAllListedStocks()", err)
+		shared.UserLog.Fatalf("Fatal error occurred while Unmarshaling StockList in GetStockSuggestions() err: %s, JSON %b", err, body)
 	}
 
 	shared.UserLog.Info("Got the following stock suggestions")
@@ -89,10 +86,8 @@ func (s *StockSuggestions) Init() tea.Cmd {
 	}
 
 	s.List = list.New(items, list.NewDefaultDelegate(), s.Width, s.Height)
-	// BUG: The width does not set until a filtering, even with this extra call.
-	log.Info("Width", s.Width)
-	s.List.SetWidth(s.Width)
 	s.List.Title = "Select a stock"
+	s.List.SetShowHelp(false)
 	s.List.SetFilteringEnabled(true)
 
 	return nil
@@ -101,16 +96,23 @@ func (s *StockSuggestions) Init() tea.Cmd {
 func (s *StockSuggestions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// BUG: Pressing q quits, should look at main.go
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		s.Width = msg.Width / 2
+		s.Height = int(float64(msg.Height) * .8)
 	case tea.KeyMsg:
 		switch key := msg.String(); key {
 
 		}
 	}
+
+	s.List.SetWidth(s.Width)
+	s.List.SetHeight(s.Height)
 	var cmd tea.Cmd
 	s.List, cmd = s.List.Update(msg)
 	return s, cmd
 }
 
 func (s *StockSuggestions) View() string {
+	listStyle := shared.Renderer.NewStyle().Border(lipgloss.RoundedBorder()).Width(s.Width).Height(s.Height)
 	return listStyle.Render(s.List.View())
 }

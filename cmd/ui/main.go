@@ -168,19 +168,21 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "Q":
 			fallthrough
 		case "q":
-			if !m.input.Model.Focused() {
+			if !m.input.Model.Focused() && !m.overlayOpen {
 				shared.UserLog.Info("Exiting on user request")
-				return m, tea.Quit
+				return m, tea.Batch(tea.ClearScreen, tea.Quit)
 			}
 		case "esc":
 			if m.overlayOpen {
 				shared.UserLog.Info("Exiting overlay")
 				m.overlayManager.Foreground.Update(ModalCloseMsg(true))
 				m.overlayOpen = false
+				return m, nil
 			}
 
 			if m.input.Model.Focused() {
 				m.input.Model.Blur()
+				return m, nil
 			}
 		}
 
