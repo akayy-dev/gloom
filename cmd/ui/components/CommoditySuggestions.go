@@ -15,6 +15,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+
 type StockListEntry struct {
 	Symbol            string `json:"symbol"`
 	Name              string `json:"name"`
@@ -34,6 +35,7 @@ func (e StockListEntry) Description() string {
 func (e StockListEntry) FilterValue() string {
 	return fmt.Sprintf("%s %s", e.Name, e.StockExchange)
 }
+
 
 // Return all stocks accessible by FMP.
 func GetStockSuggestions(symbol string) []StockListEntry {
@@ -68,7 +70,7 @@ func GetStockSuggestions(symbol string) []StockListEntry {
 	return list
 }
 
-type StockSuggestions struct {
+type CommoditySuggestions struct {
 	Symbols     []StockListEntry
 	SearchQuery string
 	List        list.Model
@@ -76,7 +78,7 @@ type StockSuggestions struct {
 	Height      int
 }
 
-func (s *StockSuggestions) Init() tea.Cmd {
+func (s *CommoditySuggestions) Init() tea.Cmd {
 	s.Symbols = GetStockSuggestions(s.SearchQuery)
 
 	// Convert the symbols list to a list of item interfaces (typejack)
@@ -85,7 +87,14 @@ func (s *StockSuggestions) Init() tea.Cmd {
 		items[i] = symbol
 	}
 
-	s.List = list.New(items, list.NewDefaultDelegate(), s.Width, s.Height)
+	delegate := list.NewDefaultDelegate()
+
+	// Change the styling of the currently selecte
+	accentColor := lipgloss.Color(shared.Koanf.String("theme.accentColor"))
+	delegate.Styles.SelectedTitle = delegate.Styles.SelectedTitle.Foreground(accentColor).BorderForeground(accentColor)
+	delegate.Styles.SelectedDesc = delegate.Styles.SelectedDesc.Foreground(accentColor).BorderForeground(accentColor)
+
+	s.List = list.New(items, delegate, s.Width, s.Height)
 	s.List.Title = "Select a stock"
 	s.List.SetShowHelp(false)
 	s.List.SetFilteringEnabled(true)
@@ -93,7 +102,7 @@ func (s *StockSuggestions) Init() tea.Cmd {
 	return nil
 }
 
-func (s *StockSuggestions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (s *CommoditySuggestions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// BUG: Pressing q quits, should look at main.go
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -112,7 +121,10 @@ func (s *StockSuggestions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return s, cmd
 }
 
-func (s *StockSuggestions) View() string {
+func (s *CommoditySuggestions) View() string {
+	titleStyle := shared.Renderer.NewStyle().Bold(true).Foreground(lipgloss.Color(shared.Koanf.String("theme.accentColor")))
 	listStyle := shared.Renderer.NewStyle().Border(lipgloss.RoundedBorder()).Width(s.Width).Height(s.Height)
+	s.List.Styles.Title = titleStyle
+	s.List.Styles.ActivePaginationDot = shared.Renderer.NewStyle().Foreground(lipgloss.Color(shared.Koanf.String("theme.accentColor")))
 	return listStyle.Render(s.List.View())
 }

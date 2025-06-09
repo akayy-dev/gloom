@@ -238,7 +238,7 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						Prompt: "Search for a stock: ",
 						CallbackFunc: func(s string) tea.Msg {
 							// TODO: Create an overlay for the current search query.
-							stocklist := components.StockSuggestions{
+							stocklist := components.CommoditySuggestions{
 								SearchQuery: s,
 								Width:  d.width / 2,
 								Height: int(float64(d.height) * .8),
