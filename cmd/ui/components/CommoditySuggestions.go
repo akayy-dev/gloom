@@ -13,10 +13,10 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/log"
 )
 
-
-type StockListEntry struct {
+type Suggestion struct {
 	Symbol            string `json:"symbol"`
 	Name              string `json:"name"`
 	Currency          string `json:"currency"`
@@ -24,21 +24,20 @@ type StockListEntry struct {
 	ExchangeShortName string `json:"exchangeShortName"`
 }
 
-func (e StockListEntry) Title() string {
+func (e Suggestion) Title() string {
 	return e.Name
 }
 
-func (e StockListEntry) Description() string {
+func (e Suggestion) Description() string {
 	return fmt.Sprintf("%s - %s", e.Symbol, e.StockExchange)
 }
 
-func (e StockListEntry) FilterValue() string {
+func (e Suggestion) FilterValue() string {
 	return fmt.Sprintf("%s %s", e.Name, e.StockExchange)
 }
 
-
 // Return all stocks accessible by FMP.
-func GetStockSuggestions(symbol string) []StockListEntry {
+func GetStockSuggestions(symbol string) []Suggestion {
 	// NOTE: QueryEscape formats characters like spaces so the request doesn't break.
 	url := fmt.Sprintf("https://financialmodelingprep.com/api/v3/search?query=%s&apikey=%s", url.QueryEscape(symbol), os.Getenv("FMP_KEY"))
 
@@ -55,23 +54,18 @@ func GetStockSuggestions(symbol string) []StockListEntry {
 		shared.UserLog.Fatal("Fatal error occurred while reading body in GetStockSuggestions()", err)
 	}
 
-	var list []StockListEntry
+	var list []Suggestion
 	err = json.Unmarshal(body, &list)
 
 	if err != nil {
 		shared.UserLog.Fatalf("Fatal error occurred while Unmarshaling StockList in GetStockSuggestions() err: %s, JSON %b", err, body)
 	}
 
-	shared.UserLog.Info("Got the following stock suggestions")
-	for _, stock := range list {
-		shared.UserLog.Info(stock.Name)
-	}
-
 	return list
 }
 
 type CommoditySuggestions struct {
-	Symbols     []StockListEntry
+	Symbols     []Suggestion
 	SearchQuery string
 	List        list.Model
 	Width       int
@@ -87,6 +81,11 @@ func (s *CommoditySuggestions) Init() tea.Cmd {
 		items[i] = symbol
 	}
 
+	/*
+		TODO: Create a custom delegate,
+			it looks like it can simplify calling a function
+			on selection.
+	*/
 	delegate := list.NewDefaultDelegate()
 
 	// Change the styling of the currently selecte
@@ -110,7 +109,12 @@ func (s *CommoditySuggestions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		s.Height = int(float64(msg.Height) * .8)
 	case tea.KeyMsg:
 		switch key := msg.String(); key {
-
+		case "esc":
+			// only close the overlay if the user isn't currently searching
+			if !s.List.SettingFilter() {
+				log.Info("Closing suggestions")
+				return s, func() tea.Msg { return shared.ModalCloseMsg(true) }
+			}
 		}
 	}
 

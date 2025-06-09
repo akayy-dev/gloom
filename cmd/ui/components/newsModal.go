@@ -164,6 +164,12 @@ func (n *NewsModal) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		n.vp.Width = n.W
 		n.vp.Height = n.H
 
+	case tea.KeyMsg:
+		switch key := msg.String(); key {
+			case "esc":
+			return n, func() tea.Msg {return shared.ModalCloseMsg(true)}
+		}
+
 	case shared.ModalCloseMsg:
 		// this basically checks if we've scraped the news using ai
 		if n.loading {

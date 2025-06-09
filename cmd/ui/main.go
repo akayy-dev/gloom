@@ -38,7 +38,6 @@ type Tab struct {
 	model MappedModel
 }
 
-type ModalCloseMsg bool
 
 type Prompt struct {
 	Model    textinput.Model
@@ -108,23 +107,17 @@ func (m MainModel) Init() tea.Cmd {
 func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	tab := m.tabs[m.activeTab].model
 	var cmd tea.Cmd
-	// NOTE: This code was meant to keep the user from being able to send keypresses
-	// to the model while an overlay was open. the current implementation suspends ALL
-	// messages from being sent, see if you can fix this later.
-
-	/* NOTE: if the overlay and the prompt is closed send all messages
-	if the prompt is open send any messge that isn't a KeyMsg
-	*/
 	if !m.overlayOpen && !m.input.Model.Focused() {
-		// only send keypresses to the current tab IF we are not in a model right now
-		// BUG: When attempting to switch tabs with an ovelay open, nothing will hapen,
-		// but when the user closes the modal, then the tab will switch.
+		// Only send keypresses to the current tab if we are not in a modal right now
 		_, cmd = tab.Update(msg)
 	} else if m.overlayOpen {
-		// Send updates to the foreground if it's open.
+		// Send updates to the foreground if it's open
 		_, cmd = m.overlayManager.Foreground.Update(msg)
+		if _, ok := msg.(tea.KeyMsg); !ok {
+			// If the message is not a KeyMsg, also send it to the background tab
+			_, _ = tab.Update(msg)
+		}
 	}
-
 	if m.input.Model.Focused() {
 		if _, ok := msg.(tea.KeyMsg); !ok {
 			_, cmd = tab.Update(msg)
@@ -134,7 +127,6 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.Width = msg.Width
-		shared.UserLog.Infof("Resizign width to %d", m.Width)
 	case tea.KeyMsg:
 		if m.input.Model.Focused() {
 			// if the user presses escape break out of the prompt
@@ -172,19 +164,19 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				shared.UserLog.Info("Exiting on user request")
 				return m, tea.Batch(tea.ClearScreen, tea.Quit)
 			}
-		case "esc":
-			if m.overlayOpen {
-				shared.UserLog.Info("Exiting overlay")
-				m.overlayManager.Foreground.Update(ModalCloseMsg(true))
-				m.overlayOpen = false
-				return m, nil
-			}
 
 			if m.input.Model.Focused() {
 				m.input.Model.Blur()
 				return m, nil
 			}
 		}
+
+	case shared.ModalCloseMsg:
+		shared.UserLog.Info("Exiting overlay")
+		m.overlayOpen = false
+		m.overlayManager.Foreground.Update(msg)
+		m.overlayManager.Background = nil
+		return m, nil
 
 	case tea.QuitMsg:
 		// clear the screen before quitting
