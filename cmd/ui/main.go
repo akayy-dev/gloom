@@ -38,6 +38,19 @@ type Tab struct {
 	model MappedModel
 }
 
+type OverlayWrapper struct {
+	*overlay.Model
+	foreground MappedModel
+	background MappedModel
+}
+
+// Implement MappedModel interface for OverlayWrapper
+func (o *OverlayWrapper) GetKeys() []key.Binding {
+	if o.foreground != nil {
+		return o.foreground.GetKeys()
+	}
+	return []key.Binding{}
+}
 
 type Prompt struct {
 	Model    textinput.Model
@@ -52,7 +65,7 @@ type MainModel struct {
 	// index of active tab in the list
 	activeTab int
 	// model responsible for showing overlay and contents "underneath" it
-	overlayManager *overlay.Model
+	overlayManager *OverlayWrapper
 	// whether or not an overlay is open
 	overlayOpen bool
 	// Help Menu
@@ -192,9 +205,17 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		//  is in the keypress part of this switch statement
 		if !m.overlayOpen {
 			shared.UserLog.Info("displaying overlay")
-			m.overlayManager = overlay.New(msg, m, overlay.Center, overlay.Center, 0, 0)
+			// Create the overlay model
+			overlayModel := overlay.New(msg, m, overlay.Center, overlay.Center, 0, 0)
+
+			// Create the wrapper
+			m.overlayManager = &OverlayWrapper{
+				Model:      overlayModel,
+				foreground: msg.(MappedModel), // Cast the message to MappedModel
+				background: m,                 // MainModel already implements MappedModel
+			}
 			m.overlayOpen = true
-			cmd = m.overlayManager.Foreground.Init() // so commands returned from the overlay on init run
+			cmd = m.overlayManager.Foreground.Init()
 		}
 	case shared.PromptOpenMsg:
 		log.Infof("PromptOpenMsg: %s", msg.Prompt)
@@ -289,20 +310,7 @@ func (m MainModel) View() string {
 		// FIXME: temporary solution for showing keybinds in news modal
 		// in the future, this should be refatored so seach model manages THEIR OWN
 		// overlay logic.
-		var keyBinds = []key.Binding{
-			key.NewBinding(
-				key.WithKeys("esc"),
-				key.WithHelp("esc", "exit overlay"),
-			),
-			key.NewBinding(
-				key.WithKeys("j"),
-				key.WithHelp("j", "scroll down"),
-			),
-			key.NewBinding(
-				key.WithKeys("k"),
-				key.WithHelp("k", "scroll up"),
-			),
-		}
+		var keyBinds = m.overlayManager.foreground.GetKeys()
 
 		lines := strings.Split(m.overlayManager.View(), "\n")
 
@@ -315,6 +323,10 @@ func (m MainModel) View() string {
 		bottomText = m.NotificationText
 	}
 	return lipgloss.JoinVertical(0, b.String(), screen, bottomText)
+}
+
+func (m MainModel) GetKeys() []key.Binding {
+	return m.overlayManager.GetKeys()
 }
 
 // Function to setup the application as an SSH server.

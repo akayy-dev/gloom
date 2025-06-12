@@ -10,6 +10,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -131,4 +132,17 @@ func (s *CommoditySuggestions) View() string {
 	s.List.Styles.Title = titleStyle
 	s.List.Styles.ActivePaginationDot = shared.Renderer.NewStyle().Foreground(lipgloss.Color(shared.Koanf.String("theme.accentColor")))
 	return listStyle.Render(s.List.View())
+}
+
+func (s CommoditySuggestions) GetKeys() []key.Binding {
+	keys := s.List.KeyMap
+	if s.List.SettingFilter() {
+		escape := key.NewBinding(
+			key.WithKeys("esc"),
+			key.WithHelp("<esc>", "Cancel filter"),
+		)
+		return []key.Binding{keys.CursorUp, keys.CursorDown, escape}
+	} else {
+		return []key.Binding{keys.CursorUp, keys.CursorDown, keys.Filter, keys.NextPage, keys.PrevPage}
+	}
 }
