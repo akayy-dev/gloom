@@ -71,6 +71,11 @@ type CommoditySuggestions struct {
 	List        list.Model
 	Width       int
 	Height      int
+	/*
+		The function that gets ran when the item gets selected.
+			TODO: Actually implement thitea.Cmds
+	*/
+	CallbackFunc func(s Suggestion) tea.Msg
 }
 
 func (s *CommoditySuggestions) Init() tea.Cmd {
@@ -82,12 +87,29 @@ func (s *CommoditySuggestions) Init() tea.Cmd {
 		items[i] = symbol
 	}
 
-	/*
-		TODO: Create a custom delegate,
-			it looks like it can simplify calling a function
-			on selection.
-	*/
 	delegate := list.NewDefaultDelegate()
+	delegate.UpdateFunc = func(msg tea.Msg, list *list.Model) tea.Cmd {
+		// Currently selected item
+		var selected Suggestion
+		if i, ok := list.SelectedItem().(Suggestion); ok {
+			selected = i
+		}
+
+		switch msg := msg.(type) {
+		case tea.KeyMsg:
+			switch msg.String() {
+			case "enter":
+				var close_msg tea.Cmd = func() tea.Msg {
+					return shared.ModalCloseMsg(true)
+				}
+				var callback tea.Cmd = func() tea.Msg {
+					return s.CallbackFunc(selected)
+				}
+				return tea.Batch(close_msg, callback)
+			}
+		}
+		return nil
+	}
 
 	// Change the styling of the currently selecte
 	accentColor := lipgloss.Color(shared.Koanf.String("theme.accentColor"))

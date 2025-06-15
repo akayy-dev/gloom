@@ -240,8 +240,15 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							// TODO: Create an overlay for the current search query.
 							stocklist := components.CommoditySuggestions{
 								SearchQuery: s,
-								Width:  d.width / 2,
-								Height: int(float64(d.height) * .8),
+								Width:       d.width / 2,
+								Height:      int(float64(d.height) * .8),
+								CallbackFunc: func(s components.Suggestion) tea.Msg {
+									d.WatchList = append(d.WatchList, s.Symbol)
+									return shared.SendNotificationMsg{
+										Message: fmt.Sprintf("Adding $%s to watchlist", s.Symbol),
+										DisplayTime: 3000,
+									}
+								},
 							}
 							return DisplayOverlayMsg(&stocklist)
 						},

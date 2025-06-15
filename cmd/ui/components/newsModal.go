@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
@@ -166,8 +167,8 @@ func (n *NewsModal) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		switch key := msg.String(); key {
-			case "esc":
-			return n, func() tea.Msg {return shared.ModalCloseMsg(true)}
+		case "esc":
+			return n, func() tea.Msg { return shared.ModalCloseMsg(true) }
 		}
 
 	case shared.ModalCloseMsg:
@@ -227,5 +228,22 @@ func (n *NewsModal) View() string {
 
 	} else {
 		return n.vp.View()
+	}
+}
+
+func (n *NewsModal) GetKeys() []key.Binding {
+	return []key.Binding{
+		key.NewBinding(
+			key.WithKeys("esc"),
+			key.WithHelp("<esc>", "close article"),
+		),
+		key.NewBinding(
+			key.WithKeys("j"),
+			key.WithHelp("<j>", "scroll down"),
+		),
+		key.NewBinding(
+			key.WithKeys("k"),
+			key.WithHelp("<k>", "scroll up"),
+		),
 	}
 }
