@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"gloomberg/cmd/ui/views"
-	"gloomberg/internal/shared"
+	"gloomberg/internal/utils"
 	"io"
 	"net"
 	"os"
@@ -95,13 +95,13 @@ func (m MainModel) Init() tea.Cmd {
 	configHome, err := os.UserHomeDir()
 
 	if err != nil {
-		shared.UserLog.Fatal("Error ocurred while loading config file path: %v", err)
+		utils.UserLog.Fatal("Error ocurred while loading config file path: %v", err)
 	}
 
 	configFilePath := filepath.Join(configHome, ".config", "gloom", "config.json")
-	shared.UserLog.Infof("Checking for config file at path %s", configFilePath)
+	utils.UserLog.Infof("Checking for config file at path %s", configFilePath)
 
-	shared.LoadDefaultConfig()
+	utils.LoadDefaultConfig()
 
 	// Load prompt model
 	m.input = Prompt{
@@ -110,8 +110,8 @@ func (m MainModel) Init() tea.Cmd {
 
 	// Check if user config file exists
 	if _, err := os.Stat(configFilePath); err == nil {
-		shared.UserLog.Infof("Config file found at %s, loading...", configFilePath)
-		shared.LoadUserConfig(configFilePath)
+		utils.UserLog.Infof("Config file found at %s, loading...", configFilePath)
+		utils.LoadUserConfig(configFilePath)
 	}
 	tab := m.tabs[m.activeTab].model
 	return tea.Batch(tea.ClearScreen, tea.SetWindowTitle("gloom"), tab.Init())
@@ -174,7 +174,7 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			fallthrough
 		case "q":
 			if !m.input.Model.Focused() && !m.overlayOpen {
-				shared.UserLog.Info("Exiting on user request")
+				utils.UserLog.Info("Exiting on user request")
 				return m, tea.Batch(tea.ClearScreen, tea.Quit)
 			}
 
@@ -184,8 +184,8 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-	case shared.ModalCloseMsg:
-		shared.UserLog.Info("Exiting overlay")
+	case utils.ModalCloseMsg:
+		utils.UserLog.Info("Exiting overlay")
 		m.overlayOpen = false
 		m.overlayManager.Foreground.Update(msg)
 		m.overlayManager.Background = nil
@@ -196,7 +196,7 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.ClearScreen
 
 	case TabChangeMsg:
-		shared.UserLog.Infof("Switching to view tabs[%d]", int(msg))
+		utils.UserLog.Infof("Switching to view tabs[%d]", int(msg))
 		m.activeTab = int(msg)
 
 	case views.DisplayOverlayMsg:
@@ -204,7 +204,7 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// NOTE: The code for pressing escape to exit the overlay
 		//  is in the keypress part of this switch statement
 		if !m.overlayOpen {
-			shared.UserLog.Info("displaying overlay")
+			utils.UserLog.Info("displaying overlay")
 			// Create the overlay model
 			overlayModel := overlay.New(msg, m, overlay.Center, overlay.Center, 0, 0)
 
@@ -217,7 +217,7 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.overlayOpen = true
 			cmd = m.overlayManager.Foreground.Init()
 		}
-	case shared.PromptOpenMsg:
+	case utils.PromptOpenMsg:
 		log.Infof("PromptOpenMsg: %s", msg.Prompt)
 
 		m.input.Model = textinput.New()
@@ -229,14 +229,14 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.input.Prompt = msg.Prompt
 		m.input.Callback = msg.CallbackFunc
 
-	case shared.SendNotificationMsg:
+	case utils.SendNotificationMsg:
 		m.NotificationText = msg.Message
 		m.ShowingNotification = true
 		log.Info("enabled showing notification")
 		cmd = tea.Tick(time.Duration(msg.DisplayTime*int(time.Millisecond)), func(t time.Time) tea.Msg {
-			return shared.HideNotificationMsg{}
+			return utils.HideNotificationMsg{}
 		})
-	case shared.HideNotificationMsg:
+	case utils.HideNotificationMsg:
 		m.ShowingNotification = false
 		log.Info("hiding notification")
 	}
@@ -259,9 +259,9 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func RenderHelp(keys []key.Binding, width int) string {
 	var b strings.Builder
 
-	accentColor := shared.Koanf.String("theme.accentColor")
+	accentColor := utils.Koanf.String("theme.accentColor")
 
-	boldStyle := shared.Renderer.NewStyle().
+	boldStyle := utils.Renderer.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color(accentColor))
 	for _, binds := range keys {
@@ -274,14 +274,14 @@ func RenderHelp(keys []key.Binding, width int) string {
 func (m MainModel) View() string {
 	tab := m.tabs[m.activeTab].model
 
-	accentColor := shared.Koanf.String("theme.accentColor")
+	accentColor := utils.Koanf.String("theme.accentColor")
 
 	// build tabbar
 	var b strings.Builder
 	for i, t := range m.tabs {
 		var tabText string
 		if i == m.activeTab {
-			bg := shared.Renderer.NewStyle().Background(lipgloss.Color(accentColor))
+			bg := utils.Renderer.NewStyle().Background(lipgloss.Color(accentColor))
 			tabText = bg.Render(fmt.Sprintf(" (%d) %s ", i+1, t.name))
 		} else {
 			tabText = fmt.Sprintf(" (%d) %s ", i+1, t.name)
@@ -298,7 +298,7 @@ func (m MainModel) View() string {
 		// if the prompt is open show it
 		if m.input.Model.Focused() {
 			// prompt is bold and in accent color
-			styledPrompt := shared.Renderer.NewStyle().Foreground(lipgloss.Color(accentColor)).Bold(true).SetString(m.input.Prompt).Render()
+			styledPrompt := utils.Renderer.NewStyle().Foreground(lipgloss.Color(accentColor)).Bold(true).SetString(m.input.Prompt).Render()
 			// NOTE: [:2] removes the leading "> " from the styledPrompt
 			bottomText = fmt.Sprintf("%s%s", styledPrompt, m.input.Model.View()[2:])
 		} else {
@@ -392,8 +392,8 @@ func main() {
 		setupSSHServer(host, port, logFile)
 	} else {
 		// TODO: Setup program without SSH
-		shared.UserLog = log.New(logFile)
-		shared.UserLog.SetOutput(logFile)
+		utils.UserLog = log.New(logFile)
+		utils.UserLog.SetOutput(logFile)
 		log.SetOutput(logFile)
 
 		var dash MappedModel = &views.Dashboard{
@@ -410,8 +410,8 @@ func main() {
 			activeTab: 0,
 		}
 
-		shared.Program = tea.NewProgram(m)
-		shared.Program.Run()
+		utils.Program = tea.NewProgram(m)
+		utils.Program.Run()
 	}
 }
 
@@ -420,7 +420,7 @@ func bubbleteaMiddleware() wish.Middleware {
 	log.Info("Starting middleware")
 	newProg := func(m tea.Model, opts []tea.ProgramOption) *tea.Program {
 		p := tea.NewProgram(m, opts...)
-		shared.Program = p
+		utils.Program = p
 		return p
 	}
 	log.Info("bubbletea program created")
@@ -440,7 +440,7 @@ func setupSSHApplication(s ssh.Session) (tea.Model, []tea.ProgramOption) {
 	// pty, _, _ := s.Pty()
 
 	// use instead of lipgloss.NewStyle()
-	shared.Renderer = bubbletea.MakeRenderer(s)
+	utils.Renderer = bubbletea.MakeRenderer(s)
 
 	// CREATE USER LOGGER
 	/* BUG: File closes after function ends,
@@ -467,15 +467,15 @@ func setupSSHApplication(s ssh.Session) (tea.Model, []tea.ProgramOption) {
 		log.Error("Cannot create log file", err)
 	}
 
-	shared.UserLog = log.New(f)
+	utils.UserLog = log.New(f)
 	// NOTE: Setting time format doesn't work, figure out how to fix this later.
-	shared.UserLog.SetTimeFormat("2006/01/02 15:04:05")
-	shared.UserLog.Info("User log created")
+	utils.UserLog.SetTimeFormat("2006/01/02 15:04:05")
+	utils.UserLog.Info("User log created")
 
 	// This function runs on
 	go func() {
 		<-s.Context().Done()
-		shared.UserLog.Info("Connection closed, ending file.")
+		utils.UserLog.Info("Connection closed, ending file.")
 		if err := f.Close(); err != nil {
 			log.Error("Error closing log file", "error", err)
 		}

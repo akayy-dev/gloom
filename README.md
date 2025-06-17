@@ -43,4 +43,4 @@ process in.
     ```
 
 # Configuration
-You can configure the behavior of the app using a `config.json` file. Gloom searches in `$HOME/.config/gloom/` for the config file. A default config file with documentation can be found [here](./internal/shared/config/default.json)
+You can configure the behavior of the app using a `config.json` file. Gloom searches in `$HOME/.config/gloom/` for the config file. A default config file with documentation can be found [here](./internal/utils/config/default.json)

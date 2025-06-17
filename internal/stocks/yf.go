@@ -1,7 +1,7 @@
 package stocks
 
 import (
-	"gloomberg/internal/shared"
+	"gloomberg/internal/utils"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/piquette/finance-go"
@@ -18,7 +18,8 @@ func GetCurrentOHLCV(symbols []string) tea.Msg {
 	for _, ticker := range symbols {
 		q, err := equity.Get(ticker)
 		if err != nil {
-			shared.UserLog.Fatalf("Error ocurre while getting equity (%s): %v", ticker, err)
+			utils.UserLog.Fatalf("Error ocurre while getting equity (%s): %v", ticker, err)
+
 		}
 		tickers = append(tickers, *q)
 	}

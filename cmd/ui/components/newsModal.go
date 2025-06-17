@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"gloomberg/internal/scraping"
-	"gloomberg/internal/shared"
+	"gloomberg/internal/utils"
 	"strings"
 	"time"
 
@@ -31,7 +31,7 @@ type NewsModal struct {
 	// viewport model
 	vp viewport.Model
 
-	// glamour shared.Renderer
+	// glamour utils.Renderer
 	styler *glamour.TermRenderer
 
 	// context for prompt function.
@@ -51,10 +51,10 @@ type NewsModal struct {
 func scrapeNews(article *scraping.NewsArticle, status *chan scraping.StatusUpdate, ctx context.Context) tea.Cmd {
 	log.Info("scrapeNews CMD")
 	return func() tea.Msg {
-		shared.UserLog.Info("scrapeNews Cmd run")
+		utils.UserLog.Info("scrapeNews Cmd run")
 		go func() {
 			for progress := range *status {
-				shared.Program.Send(UpdateStatusMsg(progress))
+				utils.Program.Send(UpdateStatusMsg(progress))
 			}
 		}()
 		go scraping.PromptNewsURL(article, status, ctx) // needs to run in it's own routine for listen to workk
@@ -63,10 +63,10 @@ func scrapeNews(article *scraping.NewsArticle, status *chan scraping.StatusUpdat
 }
 
 func (n *NewsModal) styleArticle() (string, error) {
-	shared.UserLog.Info("Styling markdown")
+	utils.UserLog.Info("Styling markdown")
 	md, err := n.styler.Render(n.Article.Content)
 	if err != nil {
-		shared.UserLog.Errorf("Cannot render markdown content %s", err)
+		utils.UserLog.Errorf("Cannot render markdown content %s", err)
 	}
 
 	var header string
@@ -102,7 +102,7 @@ func (n *NewsModal) styleArticle() (string, error) {
 
 	}
 	if err != nil {
-		shared.UserLog.Errorf("Cannot render markdown content %s", err)
+		utils.UserLog.Errorf("Cannot render markdown content %s", err)
 	}
 	return fmt.Sprintf("%s\n%s", header, md), nil
 }
@@ -112,24 +112,24 @@ func (n *NewsModal) Init() tea.Cmd {
 
 	// initialize viewport with full width but minimal height
 	n.vp = viewport.New(n.W, 1)
-	n.vp.Style = shared.Renderer.NewStyle().
+	n.vp.Style = utils.Renderer.NewStyle().
 		Border(lipgloss.NormalBorder()).
 		Padding(0, 0).
 		Width(n.W)
 
-	// initialize glamour shared.Renderer
+	// initialize glamour utils.Renderer
 	var err error
 	n.styler, err = glamour.NewTermRenderer(
-		glamour.WithStyles(shared.CreateMarkdownUserConfig()),
+		glamour.WithStyles(utils.CreateMarkdownUserConfig()),
 		glamour.WithWordWrap(n.W-5),
 	)
 	if err != nil {
-		shared.UserLog.Errorf("Cannot create glamour shared.Renderer %s", err)
+		utils.UserLog.Errorf("Cannot create glamour utils.Renderer %s", err)
 	}
 
 	// if article is not readable, scrape it
 	if !n.Article.Readable {
-		shared.UserLog.Info("Article not readable, loading content")
+		utils.UserLog.Info("Article not readable, loading content")
 		n.loading = true
 		n.progressChan = make(chan scraping.StatusUpdate)
 
@@ -146,7 +146,7 @@ func (n *NewsModal) Init() tea.Cmd {
 		content, err := n.styleArticle()
 		n.vp.SetContent(content)
 		if err != nil {
-			shared.UserLog.Errorf("Cannot render markdown content %s", err)
+			utils.UserLog.Errorf("Cannot render markdown content %s", err)
 		}
 		n.loading = false
 		n.vp.Height = n.H
@@ -168,21 +168,21 @@ func (n *NewsModal) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch key := msg.String(); key {
 		case "esc":
-			return n, func() tea.Msg { return shared.ModalCloseMsg(true) }
+			return n, func() tea.Msg { return utils.ModalCloseMsg(true) }
 		}
 
-	case shared.ModalCloseMsg:
+	case utils.ModalCloseMsg:
 		// this basically checks if we've scraped the news using ai
 		if n.loading {
-			shared.UserLog.Info("Closing news modal and cancelling network request")
+			utils.UserLog.Info("Closing news modal and cancelling network request")
 			n.newsCtxCancel()
 		}
 	case UpdateContentMsg:
-		shared.UserLog.Info("Finished scraping article")
+		utils.UserLog.Info("Finished scraping article")
 		n.vp.Height = n.H
 		content, err := n.styleArticle()
 		if err != nil {
-			shared.UserLog.Errorf("Cannot render markdown content %s", err)
+			utils.UserLog.Errorf("Cannot render markdown content %s", err)
 		}
 		n.loading = false
 		n.vp.SetContent(content)
@@ -205,12 +205,12 @@ func (n *NewsModal) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			statusMsg = " Scraping text from article"
 		case 4:
 			statusMsg = " Done"
-			shared.UserLog.Debug(statusMsg)
+			utils.UserLog.Debug(statusMsg)
 			return n, func() tea.Msg { return UpdateContentMsg(*n.Article) }
 		}
 
 		n.statusMessage = statusMsg
-		shared.UserLog.Info(statusMsg)
+		utils.UserLog.Info(statusMsg)
 	}
 	n.vp, cmd = n.vp.Update(msg)
 	return n, cmd
@@ -218,7 +218,7 @@ func (n *NewsModal) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (n *NewsModal) View() string {
 	if n.loading {
-		statusStyle := shared.Renderer.NewStyle().
+		statusStyle := utils.Renderer.NewStyle().
 			Width(n.W).
 			Height(10).
 			Align(lipgloss.Center, lipgloss.Center).

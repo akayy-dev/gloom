@@ -1,5 +1,5 @@
 // Place globals variables here.
-package shared
+package utils
 
 import (
 	tea "github.com/charmbracelet/bubbletea"

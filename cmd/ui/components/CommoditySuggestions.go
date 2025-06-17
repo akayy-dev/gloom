@@ -3,7 +3,7 @@ package components
 import (
 	"encoding/json"
 	"fmt"
-	"gloomberg/internal/shared"
+	"gloomberg/internal/utils"
 	"io"
 	"net/http"
 	"net/url"
@@ -46,20 +46,20 @@ func GetStockSuggestions(symbol string) []Suggestion {
 	resp, err := client.Get(url)
 
 	if err != nil {
-		shared.UserLog.Fatal("Fatal error ocurred while requesting listed stocks from GetStockSuggestions()", err)
+		utils.UserLog.Fatal("Fatal error ocurred while requesting listed stocks from GetStockSuggestions()", err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		shared.UserLog.Fatal("Fatal error occurred while reading body in GetStockSuggestions()", err)
+		utils.UserLog.Fatal("Fatal error occurred while reading body in GetStockSuggestions()", err)
 	}
 
 	var list []Suggestion
 	err = json.Unmarshal(body, &list)
 
 	if err != nil {
-		shared.UserLog.Fatalf("Fatal error occurred while Unmarshaling StockList in GetStockSuggestions() err: %s, JSON %b", err, body)
+		utils.UserLog.Fatalf("Fatal error occurred while Unmarshaling StockList in GetStockSuggestions() err: %s, JSON %b", err, body)
 	}
 
 	return list
@@ -100,7 +100,7 @@ func (s *CommoditySuggestions) Init() tea.Cmd {
 			switch msg.String() {
 			case "enter":
 				var close_msg tea.Cmd = func() tea.Msg {
-					return shared.ModalCloseMsg(true)
+					return utils.ModalCloseMsg(true)
 				}
 				var callback tea.Cmd = func() tea.Msg {
 					return s.CallbackFunc(selected)
@@ -112,7 +112,7 @@ func (s *CommoditySuggestions) Init() tea.Cmd {
 	}
 
 	// Change the styling of the currently selecte
-	accentColor := lipgloss.Color(shared.Koanf.String("theme.accentColor"))
+	accentColor := lipgloss.Color(utils.Koanf.String("theme.accentColor"))
 	delegate.Styles.SelectedTitle = delegate.Styles.SelectedTitle.Foreground(accentColor).BorderForeground(accentColor)
 	delegate.Styles.SelectedDesc = delegate.Styles.SelectedDesc.Foreground(accentColor).BorderForeground(accentColor)
 
@@ -136,7 +136,7 @@ func (s *CommoditySuggestions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// only close the overlay if the user isn't currently searching
 			if !s.List.SettingFilter() {
 				log.Info("Closing suggestions")
-				return s, func() tea.Msg { return shared.ModalCloseMsg(true) }
+				return s, func() tea.Msg { return utils.ModalCloseMsg(true) }
 			}
 		}
 	}
@@ -149,10 +149,10 @@ func (s *CommoditySuggestions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (s *CommoditySuggestions) View() string {
-	titleStyle := shared.Renderer.NewStyle().Bold(true).Foreground(lipgloss.Color(shared.Koanf.String("theme.accentColor")))
-	listStyle := shared.Renderer.NewStyle().Border(lipgloss.RoundedBorder()).Width(s.Width).Height(s.Height)
+	titleStyle := utils.Renderer.NewStyle().Bold(true).Foreground(lipgloss.Color(utils.Koanf.String("theme.accentColor")))
+	listStyle := utils.Renderer.NewStyle().Border(lipgloss.RoundedBorder()).Width(s.Width).Height(s.Height)
 	s.List.Styles.Title = titleStyle
-	s.List.Styles.ActivePaginationDot = shared.Renderer.NewStyle().Foreground(lipgloss.Color(shared.Koanf.String("theme.accentColor")))
+	s.List.Styles.ActivePaginationDot = utils.Renderer.NewStyle().Foreground(lipgloss.Color(utils.Koanf.String("theme.accentColor")))
 	return listStyle.Render(s.List.View())
 }
 

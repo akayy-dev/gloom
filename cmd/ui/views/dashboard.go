@@ -8,8 +8,8 @@ import (
 
 	"gloomberg/cmd/ui/components"
 	"gloomberg/internal/scraping"
-	"gloomberg/internal/shared"
 	"gloomberg/internal/stocks"
+	"gloomberg/internal/utils"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/table"
@@ -74,36 +74,36 @@ func (d *Dashboard) Init() tea.Cmd {
 
 	newsTable := table.New(table.WithFocused(false))
 
-	accentColor := shared.Koanf.String("theme.accentColor")
+	accentColor := utils.Koanf.String("theme.accentColor")
 	log.Infof("Accent Color: %s", accentColor)
 
 	foucsedInnerStyle := table.Styles{
-		Header: shared.Renderer.NewStyle().
+		Header: utils.Renderer.NewStyle().
 			Align(lipgloss.Center).
 			Bold(true).
 			Foreground(lipgloss.Color("#FFFFFF")),
-		Cell:     shared.Renderer.NewStyle(),
-		Selected: shared.Renderer.NewStyle().Bold(true).Foreground(lipgloss.Color(accentColor)),
+		Cell:     utils.Renderer.NewStyle(),
+		Selected: utils.Renderer.NewStyle().Bold(true).Foreground(lipgloss.Color(accentColor)),
 	}
 
 	unfocusedInnerStyle := table.Styles{
-		Header: shared.Renderer.NewStyle().
+		Header: utils.Renderer.NewStyle().
 			BorderForeground(lipgloss.Color(accentColor)).
 			Bold(false),
-		Cell:     shared.Renderer.NewStyle(),
-		Selected: shared.Renderer.NewStyle().Bold(true).Foreground(lipgloss.Color(accentColor)),
+		Cell:     utils.Renderer.NewStyle(),
+		Selected: utils.Renderer.NewStyle().Bold(true).Foreground(lipgloss.Color(accentColor)),
 	}
 
 	d.focusedStyle = TableStyle{
 		innerStyle: foucsedInnerStyle,
-		outerStyle: shared.Renderer.NewStyle().
+		outerStyle: utils.Renderer.NewStyle().
 			BorderForeground(lipgloss.Color(accentColor)).
 			Border(lipgloss.NormalBorder()),
 	}
 
 	d.unfocusedStyle = TableStyle{
 		innerStyle: unfocusedInnerStyle,
-		outerStyle: shared.Renderer.NewStyle().BorderForeground(lipgloss.Color("#FFFFFF")).Border(lipgloss.NormalBorder()),
+		outerStyle: utils.Renderer.NewStyle().BorderForeground(lipgloss.Color("#FFFFFF")).Border(lipgloss.NormalBorder()),
 	}
 
 	d.tables = append(d.tables, cmdtyTable, stockTable, newsTable)
@@ -115,7 +115,7 @@ func (d *Dashboard) Init() tea.Cmd {
 
 	d.tables[0].Focus()
 
-	d.WatchList = shared.Koanf.Strings("dashboard.tickers")
+	d.WatchList = utils.Koanf.Strings("dashboard.tickers")
 	return tea.Batch(scraping.GetCommodities,
 		scraping.GetAllNews,
 		func() tea.Msg { return commodityUpdateTick() },
@@ -196,7 +196,7 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			d.tables[d.focused].Focus()
 			d.tables[d.focused].SetStyles(d.focusedStyle.innerStyle)
 
-			shared.UserLog.Infof("Focusing on table %v", d.focused)
+			utils.UserLog.Infof("Focusing on table %v", d.focused)
 		case "shift+tab":
 			d.tables[d.focused].Blur()
 			if d.focused > 0 {
@@ -209,10 +209,10 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			d.tables[d.focused].Focus()
 			d.tables[d.focused].SetStyles(d.focusedStyle.innerStyle)
 
-			shared.UserLog.Infof("Focusing on table %v", d.focused)
+			utils.UserLog.Infof("Focusing on table %v", d.focused)
 
 		case "enter":
-			shared.UserLog.Info("enter pressed")
+			utils.UserLog.Info("enter pressed")
 
 			switch d.focused {
 			// different actions depending on which table is focused
@@ -234,7 +234,7 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// add symbol on stock table
 			if d.focused == 1 {
 				return d, func() tea.Msg {
-					return shared.PromptOpenMsg{
+					return utils.PromptOpenMsg{
 						Prompt: "Search for a stock: ",
 						CallbackFunc: func(s string) tea.Msg {
 							// TODO: Create an overlay for the current search query.
@@ -243,9 +243,12 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 								Width:       d.width / 2,
 								Height:      int(float64(d.height) * .8),
 								CallbackFunc: func(s components.Suggestion) tea.Msg {
+									// TODO: Create a function that can add to the watchlist
+									// and refresh the display, instead of waiting for the next
+									// update message.
 									d.WatchList = append(d.WatchList, s.Symbol)
-									return shared.SendNotificationMsg{
-										Message: fmt.Sprintf("Adding $%s to watchlist", s.Symbol),
+									return utils.SendNotificationMsg{
+										Message:     fmt.Sprintf("Adding $%s to watchlist", s.Symbol),
 										DisplayTime: 3000,
 									}
 								},
@@ -259,7 +262,7 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		d.tables[d.focused], cmd = d.tables[d.focused].Update(msg)
 
 	case scraping.CommodityUpdateMsg:
-		shared.UserLog.Info("Commodity Data Recieved")
+		utils.UserLog.Info("Commodity Data Recieved")
 		rows := []table.Row{}
 		for _, cmdty := range msg {
 			var color string
@@ -275,11 +278,11 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			})
 		}
 		d.tables[0].SetRows(rows)
-		shared.UserLog.Info("Got commodity data")
+		utils.UserLog.Info("Got commodity data")
 		return d, commodityUpdateTick()
 
 	case scraping.NewsUpdate:
-		shared.UserLog.Info("Got news update")
+		utils.UserLog.Info("Got news update")
 
 		rows := []table.Row{}
 
@@ -318,7 +321,7 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		d.tables[2].SetRows(rows)
 
 	case stocks.OHLCVTickerUpdateMsg:
-		shared.UserLog.Info("Got stock data")
+		utils.UserLog.Info("Got stock data")
 		var rows []table.Row
 		for _, row := range msg {
 			var color string
@@ -339,7 +342,7 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// seems lipgloss can handle it
 				fmt.Sprintf("%.2f", row.RegularMarketChange),
 			})
-			shared.UserLog.Infof("Adding row for %s", row.Symbol)
+			utils.UserLog.Infof("Adding row for %s", row.Symbol)
 		}
 		d.tables[1].SetRows(rows)
 		return d, stockUpdateTick(d.WatchList)
@@ -383,10 +386,10 @@ func (d *Dashboard) GetKeys() []key.Binding { // TODO: Change to have actual typ
 }
 
 func (d *Dashboard) View() string {
-	accentColor := shared.Koanf.String("theme.accentColor")
+	accentColor := utils.Koanf.String("theme.accentColor")
 
-	foucsedBorder := shared.Renderer.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color(accentColor))
-	unfocusedBorder := shared.Renderer.NewStyle().Border(lipgloss.NormalBorder())
+	foucsedBorder := utils.Renderer.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color(accentColor))
+	unfocusedBorder := utils.Renderer.NewStyle().Border(lipgloss.NormalBorder())
 
 	var styledTables []string
 	for _, t := range d.tables {
