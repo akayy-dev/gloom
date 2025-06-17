@@ -49,6 +49,60 @@ type Dashboard struct {
 	WatchList []string
 }
 
+type RowData struct {
+	CompanyName   string
+	Symbol        string
+	Price         float64
+	PercentChange float64
+	SMA           float64
+}
+
+// Return a table.Row for the stock table to use
+func (d RowData) Render() table.Row {
+	var color string
+	if d.PercentChange >= 0 {
+		color = "\033[38;5;46m" // green
+	} else {
+		color = "\033[38;5;196m" // red
+	}
+	return table.Row{
+		fmt.Sprintf("%s%s (%s)", color, d.CompanyName, d.Symbol),
+		fmt.Sprintf("$%.2f", d.SMA),
+		fmt.Sprintf("$%.2f", d.Price),
+		// NOTE: Adding return-to-normal escape code (\033[0m) breaks table width, doesn't matter though,
+		// seems lipgloss can handle it
+		fmt.Sprintf("%.2f", d.PercentChange),
+	}
+}
+
+func GetTableRows(symbols []string) []RowData {
+	var rows []RowData
+
+	for _, symbol := range symbols {
+		profile, err := utils.GetCompanyProfile(symbol)
+		if err != nil {
+			utils.Program.Send(tea.Quit())
+			utils.UserLog.Fatalf("Failed to get profile for %s, err: %v", symbol, err)
+		}
+		bars, err := utils.GetStockData(symbol)
+		if err != nil {
+			utils.Program.Send(tea.Quit())
+			utils.UserLog.Fatalf("Failed to get stock data for %s, err: %v", symbol, err)
+		}
+
+		rows = append(rows, RowData{
+			CompanyName:   profile.CompanyName,
+			Symbol:        profile.Symbol,
+			Price:         bars[0].Close,
+			PercentChange: bars[0].ChangePercent,
+			SMA:           0.00, // TODO: Create a function to get SMA over n days.
+		})
+
+	}
+
+	return rows
+}
+
 func commodityUpdateTick() tea.Cmd {
 	return tea.Tick(5*time.Second, func(t time.Time) tea.Msg {
 		return scraping.GetCommodities()
