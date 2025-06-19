@@ -1,9 +1,6 @@
 package stocks
 
 import (
-	"gloomberg/internal/utils"
-
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/piquette/finance-go"
 	"github.com/piquette/finance-go/equity"
 	// "github.com/piquette/finance-go/datetime"
@@ -12,26 +9,10 @@ import (
 
 type OHLCVTickerUpdateMsg []finance.Equity
 
-func GetCurrentOHLCV(symbols []string) tea.Msg {
-	tickers := []finance.Equity{}
-
-	for _, ticker := range symbols {
-		q, err := equity.Get(ticker)
-		if err != nil {
-			utils.UserLog.Fatalf("Error ocurre while getting equity (%s): %v", ticker, err)
-
-		}
-		tickers = append(tickers, *q)
+func GetCurrentOHLCV(symbol string) (finance.Equity, error) {
+	q, err := equity.Get(symbol)
+	if err != nil {
+		return *q, err
 	}
-
-	return OHLCVTickerUpdateMsg(tickers)
+	return *q, nil
 }
-
-// func GetSymbolChart(symbol string, interval datetime.Interval) {
-// 	params := &chart.Params{
-// 		Symbol: symbol,
-// 		Interval: interval,
-// 	}
-//
-// 	iter := chart.Get(params)
-// }

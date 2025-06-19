@@ -40,7 +40,8 @@ func (e Suggestion) FilterValue() string {
 // Return all stocks accessible by FMP.
 func GetStockSuggestions(symbol string) []Suggestion {
 	// NOTE: QueryEscape formats characters like spaces so the request doesn't break.
-	url := fmt.Sprintf("https://financialmodelingprep.com/api/v3/search?query=%s&apikey=%s", url.QueryEscape(symbol), os.Getenv("FMP_KEY"))
+	// Also manually defining exchanges because yahoo finance doesn't support currency exchange.
+	url := fmt.Sprintf("https://financialmodelingprep.com/api/v3/search?query=%s&exchange=PNK,NASDAQ,NYSE,BSE,XETRA,LSE,AMEX,HKSE,JPX,ASX,SHZ,NSE,EURONEXT,SHH,TSX&apikey=%s", url.QueryEscape(symbol), os.Getenv("FMP_KEY"))
 
 	client := http.Client{Timeout: 15 * time.Second} // The api returns a pretty big set of data, so it's best if we have it time out.
 	resp, err := client.Get(url)

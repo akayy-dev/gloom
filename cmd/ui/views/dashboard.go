@@ -14,39 +14,66 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/log"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-type DisplayOverlayMsg tea.Model
-
-type TableStyle struct {
-	innerStyle table.Styles
-	outerStyle lipgloss.Style
+func commodityUpdateTick() tea.Cmd {
+	return tea.Tick(5*time.Second, func(t time.Time) tea.Msg {
+		return scraping.GetCommodities()
+	})
 }
 
-type Dashboard struct {
-	Name string
-	// screen height
-	height int
-	// screen width
-	width int
-	// List of tables, tables[0] is commodities, tables[1] is stocks, tables[3] is news
-	tables []table.Model
-	// index of the focused table
-	focused int
-	// unfocused style
-	focusedStyle TableStyle
-	// focused style
-	unfocusedStyle TableStyle
-	// map the row in the table to an actual news article
-	articleMap map[int]scraping.NewsArticle
+// Update the stock prices every 5 seconds.
+func stockUpdateTick(symbols []string) tea.Cmd {
+	utils.UserLog.Info("stockUpdateTick")
+	return tea.Tick(5*time.Second, func(t time.Time) tea.Msg {
+		var rows []RowData
+		for _, symbol := range symbols {
+			q, err := stocks.GetCurrentOHLCV(symbol)
+			if err != nil {
+				utils.UserLog.Errorf("Error fetching data for %s: %v", symbol, err)
+				continue
+			}
+			row := RowData{
+				CompanyName:   q.ShortName,
+				Symbol:        q.Symbol,
+				Price:         q.RegularMarketPrice,
+				PercentChange: q.RegularMarketChange,
+				SMA:           q.Quote.FiftyDayAverage,
+			}
+			rows = append(rows, row)
+		}
+		return WatchlistUpdateMsg{Rows: rows, Refresh: true}
+	})
+}
 
-	// Stock Watchlist
-	Watchlist []string
-	// Stock watchlist
-	WatchList []string
+func (d *Dashboard) GetWatchList(refresh bool) tea.Msg {
+	var rows []RowData
+	for _, symbol := range d.WatchList {
+		utils.UserLog.Infof("Getting data for %s", symbol)
+		q, err := stocks.GetCurrentOHLCV(symbol)
+		if err != nil {
+			utils.UserLog.Errorf("Error fetching data for %s: %v", symbol, err)
+			continue
+		}
+		row := RowData{
+			CompanyName:   q.ShortName,
+			Symbol:        q.Symbol,
+			Price:         q.RegularMarketPrice,
+			PercentChange: q.RegularMarketChange,
+			SMA:           q.Quote.FiftyDayAverage,
+		}
+		rows = append(rows, row)
+	}
+	return WatchlistUpdateMsg{Rows: rows, Refresh: refresh}
+}
+
+type WatchlistUpdateMsg struct {
+	Rows []RowData
+	// Should recieving this WatchlistUpdateMsg
+	// send another WatchlistUpdateMsg in a couple of seconds?
+	Refresh bool
 }
 
 type RowData struct {
@@ -75,46 +102,32 @@ func (d RowData) Render() table.Row {
 	}
 }
 
-func GetTableRows(symbols []string) []RowData {
-	var rows []RowData
+type DisplayOverlayMsg tea.Model
 
-	for _, symbol := range symbols {
-		profile, err := utils.GetCompanyProfile(symbol)
-		if err != nil {
-			utils.Program.Send(tea.Quit())
-			utils.UserLog.Fatalf("Failed to get profile for %s, err: %v", symbol, err)
-		}
-		bars, err := utils.GetStockData(symbol)
-		if err != nil {
-			utils.Program.Send(tea.Quit())
-			utils.UserLog.Fatalf("Failed to get stock data for %s, err: %v", symbol, err)
-		}
-
-		rows = append(rows, RowData{
-			CompanyName:   profile.CompanyName,
-			Symbol:        profile.Symbol,
-			Price:         bars[0].Close,
-			PercentChange: bars[0].ChangePercent,
-			SMA:           0.00, // TODO: Create a function to get SMA over n days.
-		})
-
-	}
-
-	return rows
+type TableStyle struct {
+	innerStyle table.Styles
+	outerStyle lipgloss.Style
 }
 
-func commodityUpdateTick() tea.Cmd {
-	return tea.Tick(5*time.Second, func(t time.Time) tea.Msg {
-		return scraping.GetCommodities()
-	})
-}
+type Dashboard struct {
+	Name string
+	// screen height
+	height int
+	// screen width
+	width int
+	// List of tables, tables[0] is commodities, tables[1] is stocks, tables[3] is news
+	tables []table.Model
+	// index of the focused table
+	focused int
+	// unfocused style
+	focusedStyle TableStyle
+	// focused style
+	unfocusedStyle TableStyle
+	// map the row in the table to an actual news article
+	articleMap map[int]scraping.NewsArticle
 
-// Update the stock prices every 5 seconds.
-func stockUpdateTick(symbols []string) tea.Cmd {
-	log.Info("stockUpdateTick")
-	return tea.Tick(5*time.Second, func(t time.Time) tea.Msg {
-		return stocks.GetCurrentOHLCV(symbols)
-	})
+	// Stock watchlist
+	WatchList []string
 }
 
 func (d *Dashboard) Init() tea.Cmd {
@@ -129,7 +142,6 @@ func (d *Dashboard) Init() tea.Cmd {
 	newsTable := table.New(table.WithFocused(false))
 
 	accentColor := utils.Koanf.String("theme.accentColor")
-	log.Infof("Accent Color: %s", accentColor)
 
 	foucsedInnerStyle := table.Styles{
 		Header: utils.Renderer.NewStyle().
@@ -173,9 +185,7 @@ func (d *Dashboard) Init() tea.Cmd {
 	return tea.Batch(scraping.GetCommodities,
 		scraping.GetAllNews,
 		func() tea.Msg { return commodityUpdateTick() },
-		// TODO: Find a way to dynamically get the tickers to search, perhaps a config file or
-		// database entry for user preferences?
-		func() tea.Msg { return stocks.GetCurrentOHLCV(d.WatchList) },
+		func() tea.Msg { return d.GetWatchList(true) },
 	)
 }
 
@@ -273,7 +283,7 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case 2: // news table
 				rowID, err := strconv.Atoi(d.tables[2].SelectedRow()[3]) // index of the article in the articleMap
 				if err != nil {
-					log.Fatal(err)
+					utils.UserLog.Fatal(err)
 				}
 				selectedStory := d.articleMap[rowID]
 				newsOverlay := components.NewsModal{
@@ -301,6 +311,7 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 									// and refresh the display, instead of waiting for the next
 									// update message.
 									d.WatchList = append(d.WatchList, s.Symbol)
+									utils.Program.Send(d.GetWatchList(false))
 									return utils.SendNotificationMsg{
 										Message:     fmt.Sprintf("Adding $%s to watchlist", s.Symbol),
 										DisplayTime: 3000,
@@ -374,31 +385,14 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		d.tables[2].SetRows(rows)
 
-	case stocks.OHLCVTickerUpdateMsg:
-		utils.UserLog.Info("Got stock data")
-		var rows []table.Row
-		for _, row := range msg {
-			var color string
-
-			// manually add ANSI color codes, lipgloss messes up foramtting.
-			// TODO: Possibly implement this hack with the commodities table?
-			if row.RegularMarketChange > 0 {
-				color = "\033[38;5;46m" // green
-			} else {
-				color = "\033[38;5;196m" // red
-			}
-
-			rows = append(rows, table.Row{
-				fmt.Sprintf("%s%s (%s)", color, row.ShortName, row.Symbol),
-				fmt.Sprintf("$%.2f", row.Quote.FiftyDayAverage),
-				fmt.Sprintf("$%.2f", row.RegularMarketPrice),
-				// NOTE: Adding return-to-normal escape code (\033[0m) breaks table width, doesn't matter though,
-				// seems lipgloss can handle it
-				fmt.Sprintf("%.2f", row.RegularMarketChange),
-			})
+	case WatchlistUpdateMsg:
+		utils.UserLog.Info("Got stock data (WatchlistUpdateMsg)")
+		var tableRows []table.Row
+		for _, row := range msg.Rows {
+			tableRows = append(tableRows, row.Render())
 			utils.UserLog.Infof("Adding row for %s", row.Symbol)
 		}
-		d.tables[1].SetRows(rows)
+		d.tables[1].SetRows(tableRows)
 		return d, stockUpdateTick(d.WatchList)
 	}
 
