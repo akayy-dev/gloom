@@ -8,7 +8,6 @@ import (
 
 	"gloomberg/cmd/ui/components"
 	"gloomberg/internal/scraping"
-	"gloomberg/internal/stocks"
 	"gloomberg/internal/utils"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -30,7 +29,7 @@ func stockUpdateTick(symbols []string) tea.Cmd {
 	return tea.Tick(5*time.Second, func(t time.Time) tea.Msg {
 		var rows []RowData
 		for _, symbol := range symbols {
-			q, err := stocks.GetCurrentOHLCV(symbol)
+			q, err := utils.GetCurrentOHLCV(symbol)
 			if err != nil {
 				utils.UserLog.Errorf("Error fetching data for %s: %v", symbol, err)
 				continue
@@ -52,7 +51,7 @@ func (d *Dashboard) GetWatchList(refresh bool) tea.Msg {
 	var rows []RowData
 	for _, symbol := range d.WatchList {
 		utils.UserLog.Infof("Getting data for %s", symbol)
-		q, err := stocks.GetCurrentOHLCV(symbol)
+		q, err := utils.GetCurrentOHLCV(symbol)
 		if err != nil {
 			utils.UserLog.Errorf("Error fetching data for %s: %v", symbol, err)
 			continue

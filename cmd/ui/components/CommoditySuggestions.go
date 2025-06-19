@@ -14,7 +14,6 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/log"
 )
 
 type Suggestion struct {
@@ -136,7 +135,7 @@ func (s *CommoditySuggestions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "esc":
 			// only close the overlay if the user isn't currently searching
 			if !s.List.SettingFilter() {
-				log.Info("Closing suggestions")
+				utils.UserLog.Debug("Closing CommoditySuggestions modal.")
 				return s, func() tea.Msg { return utils.ModalCloseMsg(true) }
 			}
 		}

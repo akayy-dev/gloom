@@ -5,16 +5,10 @@ import (
 	"github.com/piquette/finance-go/equity"
 )
 
-func GetCurrentOHLCV(symbols []string) ([]finance.Equity, error) {
-	tickers := []finance.Equity{}
-
-	for _, ticker := range symbols {
-		q, err := equity.Get(ticker)
-		if err != nil {
-			return tickers, err
-		}
-		tickers = append(tickers, *q)
+func GetCurrentOHLCV(symbol string) (finance.Equity, error) {
+	q, err := equity.Get(symbol)
+	if err != nil {
+		return *q, err
 	}
-
-	return tickers, nil
+	return *q, nil
 }
