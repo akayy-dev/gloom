@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"gloomberg/internal/shared"
+	"gloomberg/internal/utils"
 	"io"
 	"net/http"
 	"os"
@@ -26,7 +26,7 @@ import (
 type StatusUpdate struct {
 	// Status Code, negative numbers generally mean an error
 	StatusCode int
-	// if an error is raised, the error as a string will be put here 
+	// if an error is raised, the error as a string will be put here
 	StatusMessage string
 }
 
@@ -72,13 +72,13 @@ func PromptNewsURL(article *NewsArticle, progressChan *chan StatusUpdate, ctx co
 		if strings.Contains(err.Error(), "API key not valid") {
 			log.Errorf("Invalid API key provided for Gemini Client: %s", err)
 			(*progressChan) <- StatusUpdate{
-				StatusCode: -1,
+				StatusCode:    -1,
 				StatusMessage: "Gemini key is not valid, did you set $GEMINI_KEY",
 			}
 		} else {
 			log.Errorf("Error while creating Gemini Client: %s", err)
 			(*progressChan) <- StatusUpdate{
-				StatusCode: -1,
+				StatusCode:    -1,
 				StatusMessage: err.Error(),
 			}
 		}
@@ -99,7 +99,7 @@ func PromptNewsURL(article *NewsArticle, progressChan *chan StatusUpdate, ctx co
 	if err != nil {
 		log.Errorf("Error while creating http request: %s", err)
 		(*progressChan) <- StatusUpdate{
-			StatusCode: -1,
+			StatusCode:    -1,
 			StatusMessage: err.Error(),
 		}
 		return
@@ -114,21 +114,21 @@ func PromptNewsURL(article *NewsArticle, progressChan *chan StatusUpdate, ctx co
 		if os.IsTimeout(err) {
 			log.Error("HTTP request timed out")
 			(*progressChan) <- StatusUpdate{
-				StatusCode: -1,
+				StatusCode:    -1,
 				StatusMessage: "HTTP request timed out",
 			}
 			return
 		} else if errors.Is(err, context.DeadlineExceeded) {
 			log.Error("HTTP request context deadline exceeded")
 			(*progressChan) <- StatusUpdate{
-				StatusCode: -1,
+				StatusCode:    -1,
 				StatusMessage: "HTTP request context deadline exceeded",
 			}
 			return
 		} else {
 			log.Errorf("Error while getting article: %s", err)
 			(*progressChan) <- StatusUpdate{
-				StatusCode: -1,
+				StatusCode:    -1,
 				StatusMessage: err.Error(),
 			}
 			return
@@ -138,7 +138,7 @@ func PromptNewsURL(article *NewsArticle, progressChan *chan StatusUpdate, ctx co
 
 	if htmlSrc.ContentLength > 5*1024*1024 { // 5 MB
 		(*progressChan) <- StatusUpdate{
-			StatusCode: -1,
+			StatusCode:    -1,
 			StatusMessage: "HTML page too large, cancelling request",
 		}
 		return
@@ -156,7 +156,7 @@ func PromptNewsURL(article *NewsArticle, progressChan *chan StatusUpdate, ctx co
 	if err != nil {
 		log.Errorf("Error encountered while reading HTML content: %s", err)
 		(*progressChan) <- StatusUpdate{
-			StatusCode: 1,
+			StatusCode:    1,
 			StatusMessage: err.Error(),
 		}
 		return
@@ -229,7 +229,7 @@ func PromptNewsURL(article *NewsArticle, progressChan *chan StatusUpdate, ctx co
 				article.Bullets = response.Bullets
 			} else {
 				(*progressChan) <- StatusUpdate{
-					StatusCode: -1,
+					StatusCode:    -1,
 					StatusMessage: "Gemini was unable to parse the article",
 				}
 				return
@@ -238,7 +238,7 @@ func PromptNewsURL(article *NewsArticle, progressChan *chan StatusUpdate, ctx co
 	}
 
 	(*progressChan) <- StatusUpdate{
-		StatusCode: 4,
+		StatusCode:    4,
 		StatusMessage: "Completed",
 	}
 
@@ -252,7 +252,7 @@ func GetAllNews() tea.Msg {
 	// TODO: Refactor this code to get news from every RSS feed in the config file
 	// NOTE: Program crashed the first time I tried, but it's 2 in the morning so what do I know
 
-	rssFeeds := shared.Koanf.Strings("news.rss_feeds")
+	rssFeeds := utils.Koanf.Strings("news.rss_feeds")
 
 	for _, url := range rssFeeds {
 		log.Infof("Getting news from %s", url)

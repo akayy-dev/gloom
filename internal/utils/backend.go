@@ -1,4 +1,4 @@
-package shared
+package utils
 
 import (
 	"bytes"
@@ -64,7 +64,6 @@ func LoadDefaultConfig() {
 	if Koanf == nil {
 		Koanf = koanf.New(".")
 	}
-	
 
 	sanitizedJSON, err := StripCommentsFromJSON(defaultConfig)
 	if err != nil {

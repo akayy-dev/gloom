@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"gloomberg/cmd/ui/views"
-	"gloomberg/internal/shared"
+	"gloomberg/internal/utils"
 	"io"
 	"net"
 	"os"
@@ -18,6 +18,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/textinput"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -37,7 +38,25 @@ type Tab struct {
 	model MappedModel
 }
 
-type ModalCloseMsg bool
+type OverlayWrapper struct {
+	*overlay.Model
+	foreground MappedModel
+	background MappedModel
+}
+
+// Implement MappedModel interface for OverlayWrapper
+func (o *OverlayWrapper) GetKeys() []key.Binding {
+	if o.foreground != nil {
+		return o.foreground.GetKeys()
+	}
+	return []key.Binding{}
+}
+
+type Prompt struct {
+	Model    textinput.Model
+	Prompt   string
+	Callback func(string) tea.Msg
+}
 
 // The "entry" model.
 type MainModel struct {
@@ -46,20 +65,29 @@ type MainModel struct {
 	// index of active tab in the list
 	activeTab int
 	// model responsible for showing overlay and contents "underneath" it
-	overlayManager *overlay.Model
+	overlayManager *OverlayWrapper
 	// whether or not an overlay is open
 	overlayOpen bool
 	// Help Menu
 	Help help.Model
 	// For aligning
 	Width int
+	// What the prompt is
+	PromptMessage string
+	// Prompt Model
+	input Prompt
+
+	// The notification text displaying
+	NotificationText string
+	// Whether or not a notification is showing
+	ShowingNotification bool
 }
 
 type TabChangeMsg int
 
 type MappedModel interface {
 	tea.Model
-	GetKeys() help.KeyMap // TODO: Change this to have actual type safety.
+	GetKeys() []key.Binding // TODO: Change this to have actual type safety.
 }
 
 func (m MainModel) Init() tea.Cmd {
@@ -67,18 +95,23 @@ func (m MainModel) Init() tea.Cmd {
 	configHome, err := os.UserHomeDir()
 
 	if err != nil {
-		shared.UserLog.Fatal("Error ocurred while loading config file path: %v", err)
+		utils.UserLog.Fatal("Error ocurred while loading config file path: %v", err)
 	}
 
 	configFilePath := filepath.Join(configHome, ".config", "gloom", "config.json")
-	shared.UserLog.Infof("Checking for config file at path %s", configFilePath)
+	utils.UserLog.Infof("Checking for config file at path %s", configFilePath)
 
-	shared.LoadDefaultConfig()
+	utils.LoadDefaultConfig()
+
+	// Load prompt model
+	m.input = Prompt{
+		Model: textinput.New(),
+	}
 
 	// Check if user config file exists
 	if _, err := os.Stat(configFilePath); err == nil {
-		shared.UserLog.Infof("Config file found at %s, loading...", configFilePath)
-		shared.LoadUserConfig(configFilePath)
+		utils.UserLog.Infof("Config file found at %s, loading...", configFilePath)
+		utils.LoadUserConfig(configFilePath)
 	}
 	tab := m.tabs[m.activeTab].model
 	return tea.Batch(tea.ClearScreen, tea.SetWindowTitle("gloom"), tab.Init())
@@ -87,24 +120,49 @@ func (m MainModel) Init() tea.Cmd {
 func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	tab := m.tabs[m.activeTab].model
 	var cmd tea.Cmd
-	// NOTE: This code was meant to keep the user from being able to send keypresses
-	// to the model while an overlay was open. the current implementation suspends ALL
-	// messages from being sent, see if you can fix this later.
-	if !m.overlayOpen {
-		// only send keypresses to the current tab IF we are not in a model right now
-		// BUG: When attempting to switch tabs with an ovelay open, nothing will hapen,
-		// but when the user closes the modal, then the tab will switch.
+	if !m.overlayOpen && !m.input.Model.Focused() {
+		// Only send keypresses to the current tab if we are not in a modal right now
 		_, cmd = tab.Update(msg)
-	} else {
-		// Send updates to the foreground if it's open.
-		// NOTE: Did not think this through, so bugs might show up.
+	} else if m.overlayOpen {
+		// Send updates to the foreground if it's open
 		_, cmd = m.overlayManager.Foreground.Update(msg)
+		if _, ok := msg.(tea.KeyMsg); !ok {
+			// If the message is not a KeyMsg, also send it to the background tab
+			_, _ = tab.Update(msg)
+		}
 	}
+	if m.input.Model.Focused() {
+		if _, ok := msg.(tea.KeyMsg); !ok {
+			_, cmd = tab.Update(msg)
+		}
+	}
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.Width = msg.Width
-		shared.UserLog.Infof("Resizign width to %d", m.Width)
 	case tea.KeyMsg:
+		if m.input.Model.Focused() {
+			// if the user presses escape break out of the prompt
+			if msg.String() == "esc" {
+				m.input.Model.Blur()
+			} else if msg.String() == "enter" {
+				m.input.Model.Blur()
+				if m.input.Callback != nil {
+					cmd = func() tea.Msg {
+						return m.input.Callback(m.input.Model.Value())
+					}
+				} else {
+					log.Warn("Tried to run prompt callback but was nil, did you set the value of CallbackFunc?")
+				}
+				break
+			} else {
+				m.input.Model, cmd = m.input.Model.Update(msg)
+				break
+			}
+
+			break
+		}
+
 		for i, _ := range m.tabs {
 			// run if key index is equal to key pressed (accounting for 0 index shift)
 			if keyIndex, err := strconv.Atoi(msg.String()); err == nil && i+1 == keyIndex {
@@ -115,22 +173,30 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "Q":
 			fallthrough
 		case "q":
-			shared.UserLog.Info("Exiting on user request")
-			return m, tea.Quit
-		case "esc":
-			if m.overlayOpen {
-				shared.UserLog.Info("Exiting overlay")
-				m.overlayManager.Foreground.Update(ModalCloseMsg(true))
-				m.overlayOpen = false
+			if !m.input.Model.Focused() && !m.overlayOpen {
+				utils.UserLog.Info("Exiting on user request")
+				return m, tea.Batch(tea.ClearScreen, tea.Quit)
+			}
+
+			if m.input.Model.Focused() {
+				m.input.Model.Blur()
+				return m, nil
 			}
 		}
+
+	case utils.ModalCloseMsg:
+		utils.UserLog.Info("Exiting overlay")
+		m.overlayOpen = false
+		m.overlayManager.Foreground.Update(msg)
+		m.overlayManager.Background = nil
+		return m, nil
 
 	case tea.QuitMsg:
 		// clear the screen before quitting
 		return m, tea.ClearScreen
 
 	case TabChangeMsg:
-		shared.UserLog.Infof("Switching to view tabs[%d]", int(msg))
+		utils.UserLog.Infof("Switching to view tabs[%d]", int(msg))
 		m.activeTab = int(msg)
 
 	case views.DisplayOverlayMsg:
@@ -138,20 +204,54 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// NOTE: The code for pressing escape to exit the overlay
 		//  is in the keypress part of this switch statement
 		if !m.overlayOpen {
-			shared.UserLog.Info("displaying news overlay")
-			m.overlayManager = overlay.New(msg, m, overlay.Center, overlay.Center, 0, 0)
+			utils.UserLog.Info("displaying overlay")
+			// Create the overlay model
+			overlayModel := overlay.New(msg, m, overlay.Center, overlay.Center, 0, 0)
+
+			// Create the wrapper
+			m.overlayManager = &OverlayWrapper{
+				Model:      overlayModel,
+				foreground: msg.(MappedModel), // Cast the message to MappedModel
+				background: m,                 // MainModel already implements MappedModel
+			}
 			m.overlayOpen = true
-			cmd = m.overlayManager.Foreground.Init() // so commands returned from the overlay on init run
+			cmd = m.overlayManager.Foreground.Init()
 		}
+	case utils.PromptOpenMsg:
+		log.Infof("PromptOpenMsg: %s", msg.Prompt)
+
+		m.input.Model = textinput.New()
+		promptWidth := m.Width - len(msg.Prompt)
+
+		m.input.Model.Width = promptWidth
+		m.input.Model.CharLimit = promptWidth
+		m.input.Model.Focus()
+		m.input.Prompt = msg.Prompt
+		m.input.Callback = msg.CallbackFunc
+
+	case utils.SendNotificationMsg:
+		m.NotificationText = msg.Message
+		m.ShowingNotification = true
+		log.Info("enabled showing notification")
+		cmd = tea.Tick(time.Duration(msg.DisplayTime*int(time.Millisecond)), func(t time.Time) tea.Msg {
+			return utils.HideNotificationMsg{}
+		})
+	case utils.HideNotificationMsg:
+		m.ShowingNotification = false
+		log.Info("hiding notification")
 	}
 
 	updatedModel := MainModel{
-		tabs:           m.tabs,
-		activeTab:      m.activeTab,
-		overlayManager: m.overlayManager,
-		overlayOpen:    m.overlayOpen,
-		Width:          m.Width,
+		tabs:                m.tabs,
+		activeTab:           m.activeTab,
+		overlayManager:      m.overlayManager,
+		overlayOpen:         m.overlayOpen,
+		Width:               m.Width,
+		input:               m.input,
+		NotificationText:    m.NotificationText,
+		ShowingNotification: m.ShowingNotification,
 	}
+
 	return updatedModel, cmd
 
 }
@@ -159,9 +259,9 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func RenderHelp(keys []key.Binding, width int) string {
 	var b strings.Builder
 
-	accentColor := shared.Koanf.String("theme.accentColor")
+	accentColor := utils.Koanf.String("theme.accentColor")
 
-	boldStyle := lipgloss.NewStyle().
+	boldStyle := utils.Renderer.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color(accentColor))
 	for _, binds := range keys {
@@ -174,48 +274,59 @@ func RenderHelp(keys []key.Binding, width int) string {
 func (m MainModel) View() string {
 	tab := m.tabs[m.activeTab].model
 
-	accentColor := shared.Koanf.String("theme.accentColor")
+	accentColor := utils.Koanf.String("theme.accentColor")
 
 	// build tabbar
 	var b strings.Builder
 	for i, t := range m.tabs {
 		var tabText string
 		if i == m.activeTab {
-			bg := shared.Renderer.NewStyle().Background(lipgloss.Color(accentColor))
+			bg := utils.Renderer.NewStyle().Background(lipgloss.Color(accentColor))
 			tabText = bg.Render(fmt.Sprintf(" (%d) %s ", i+1, t.name))
 		} else {
 			tabText = fmt.Sprintf(" (%d) %s ", i+1, t.name)
 		}
 		b.WriteString(tabText)
 	}
+
+	// What text to show on the bottom
+	var bottomText string
+	var screen string
+
 	if !m.overlayOpen {
-		// NOTE: Can't hardcode the help keys forever, going to have to refactor this, and probably
-		// the whole help dialog framework to make this more exendable, but this will work for now.
-		return lipgloss.JoinVertical(0, b.String(), tab.View(), RenderHelp(tab.GetKeys().ShortHelp(), m.Width))
-	} else {
-		var keyBinds = []key.Binding{
-			key.NewBinding(
-				key.WithKeys("esc"),
-				key.WithHelp("esc", "exit overlay"),
-			),
-			key.NewBinding(
-				key.WithKeys("j"),
-				key.WithHelp("j", "scroll down"),
-			),
-			key.NewBinding(
-				key.WithKeys("k"),
-				key.WithHelp("k", "scroll up"),
-			),
+		screen = tab.View()
+		// if the prompt is open show it
+		if m.input.Model.Focused() {
+			// prompt is bold and in accent color
+			styledPrompt := utils.Renderer.NewStyle().Foreground(lipgloss.Color(accentColor)).Bold(true).SetString(m.input.Prompt).Render()
+			// NOTE: [:2] removes the leading "> " from the styledPrompt
+			bottomText = fmt.Sprintf("%s%s", styledPrompt, m.input.Model.View()[2:])
+		} else {
+			// render help key when prompt is not opened
+			bottomText = RenderHelp(tab.GetKeys(), m.Width)
 		}
 
-		screen := m.overlayManager.View()
+	} else {
+		// FIXME: temporary solution for showing keybinds in news modal
+		// in the future, this should be refatored so seach model manages THEIR OWN
+		// overlay logic.
+		var keyBinds = m.overlayManager.foreground.GetKeys()
 
-		lines := strings.Split(screen, "\n")
+		lines := strings.Split(m.overlayManager.View(), "\n")
 
-		screen = strings.Join(lines[:len(lines) - 1], "\n")
+		screen = strings.Join(lines[:len(lines)-1], "\n")
+		bottomText = RenderHelp(keyBinds, m.Width)
 
-		return lipgloss.JoinVertical(0, screen, RenderHelp(keyBinds, m.Width))
 	}
+	if m.ShowingNotification && !m.input.Model.Focused() {
+		log.Infof("Showing notification text: %s", m.NotificationText)
+		bottomText = m.NotificationText
+	}
+	return lipgloss.JoinVertical(0, b.String(), screen, bottomText)
+}
+
+func (m MainModel) GetKeys() []key.Binding {
+	return m.overlayManager.GetKeys()
 }
 
 // Function to setup the application as an SSH server.
@@ -281,8 +392,8 @@ func main() {
 		setupSSHServer(host, port, logFile)
 	} else {
 		// TODO: Setup program without SSH
-		shared.UserLog = log.New(logFile)
-		shared.UserLog.SetOutput(logFile)
+		utils.UserLog = log.New(logFile)
+		utils.UserLog.SetOutput(logFile)
 		log.SetOutput(logFile)
 
 		var dash MappedModel = &views.Dashboard{
@@ -299,8 +410,8 @@ func main() {
 			activeTab: 0,
 		}
 
-		shared.Program = tea.NewProgram(m)
-		shared.Program.Run()
+		utils.Program = tea.NewProgram(m)
+		utils.Program.Run()
 	}
 }
 
@@ -309,7 +420,7 @@ func bubbleteaMiddleware() wish.Middleware {
 	log.Info("Starting middleware")
 	newProg := func(m tea.Model, opts []tea.ProgramOption) *tea.Program {
 		p := tea.NewProgram(m, opts...)
-		shared.Program = p
+		utils.Program = p
 		return p
 	}
 	log.Info("bubbletea program created")
@@ -329,7 +440,7 @@ func setupSSHApplication(s ssh.Session) (tea.Model, []tea.ProgramOption) {
 	// pty, _, _ := s.Pty()
 
 	// use instead of lipgloss.NewStyle()
-	shared.Renderer = bubbletea.MakeRenderer(s)
+	utils.Renderer = bubbletea.MakeRenderer(s)
 
 	// CREATE USER LOGGER
 	/* BUG: File closes after function ends,
@@ -356,15 +467,15 @@ func setupSSHApplication(s ssh.Session) (tea.Model, []tea.ProgramOption) {
 		log.Error("Cannot create log file", err)
 	}
 
-	shared.UserLog = log.New(f)
+	utils.UserLog = log.New(f)
 	// NOTE: Setting time format doesn't work, figure out how to fix this later.
-	shared.UserLog.SetTimeFormat("2006/01/02 15:04:05")
-	shared.UserLog.Info("User log created")
+	utils.UserLog.SetTimeFormat("2006/01/02 15:04:05")
+	utils.UserLog.Info("User log created")
 
 	// This function runs on
 	go func() {
 		<-s.Context().Done()
-		shared.UserLog.Info("Connection closed, ending file.")
+		utils.UserLog.Info("Connection closed, ending file.")
 		if err := f.Close(); err != nil {
 			log.Error("Error closing log file", "error", err)
 		}

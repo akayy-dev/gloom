@@ -1,5 +1,5 @@
 // Place globals variables here.
-package shared
+package utils
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
@@ -11,6 +11,24 @@ import (
 
 // Message Events
 type ModalCloseMsg bool
+
+// Send a notification
+type SendNotificationMsg struct {
+	// Message to display
+	Message string
+	// Time to display the message in milliseconds
+	DisplayTime int
+}
+
+type HideNotificationMsg struct{}
+
+type OpenPromptMsg string
+
+// Open the prompt, the string is the user prompt
+type PromptOpenMsg struct {
+	Prompt       string
+	CallbackFunc func(string) tea.Msg
+}
 
 type KeyBinding struct {
 	Key string
