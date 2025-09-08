@@ -2,14 +2,26 @@ package utils
 
 import (
 	"bytes"
-	_ "embed"
+	"embed"
 	"os"
+
+	lua "github.com/yuin/gopher-lua"
 
 	"github.com/charmbracelet/log"
 	"github.com/knadh/koanf/parsers/json"
 	"github.com/knadh/koanf/providers/rawbytes"
 	"github.com/knadh/koanf/v2"
 )
+
+type RSSFeed struct {
+	URL    string
+	Cookie string
+}
+
+type UserConfig struct {
+	Tickers  []string
+	RSSFeeds []RSSFeed
+}
 
 var (
 	// Config manager
@@ -18,6 +30,31 @@ var (
 
 //go:embed config/default.json
 var defaultConfig []byte
+
+//go:embed config/*
+var luaFS embed.FS
+
+func LoadLuaConfig() {
+	L := lua.NewState()
+	defer L.Close()
+
+	script, err := luaFS.ReadFile("config/init.lua")
+	// TODO: Change panic to a log.
+	if err != nil {
+		panic(err)
+	}
+	if err := L.DoString(string(script)); err != nil {
+		panic(err)
+	}
+
+	cfg := L.GetGlobal("config")
+
+	if tbl, ok := cfg.(*lua.LTable); ok {
+		dash := tbl.RawGetString("tickers").String()
+		UserLog.Info("Got tickers from lua")
+		UserLog.Info(dash)
+	}
+}
 
 // Takes the bytes from a JSON array and removes their comment lines (lines starting with //)
 func StripCommentsFromJSON(fileContent []byte) ([]byte, error) {
