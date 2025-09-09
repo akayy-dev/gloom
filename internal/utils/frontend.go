@@ -72,7 +72,7 @@ func CreateMarkdownUserConfig() ansi.StyleConfig {
 		},
 		BlockQuote: ansi.StyleBlock{
 			StylePrimitive: ansi.StylePrimitive{
-				Color:  stringPtr(Koanf.String("theme.accentColor")),
+				Color:  stringPtr(Config.AccentColor),
 				Italic: boolPtr(true),
 			},
 			Indent: uintPtr(defaultMargin),
@@ -88,13 +88,13 @@ func CreateMarkdownUserConfig() ansi.StyleConfig {
 		Heading: ansi.StyleBlock{
 			StylePrimitive: ansi.StylePrimitive{
 				BlockSuffix: "\n",
-				Color:       stringPtr(Koanf.String("theme.accentColor")),
+				Color:       stringPtr(Config.AccentColor),
 				Bold:        boolPtr(true),
 			},
 		},
 		H1: ansi.StyleBlock{
 			StylePrimitive: ansi.StylePrimitive{
-				BackgroundColor: stringPtr(Koanf.String("theme.accentColor")),
+				BackgroundColor: stringPtr(Config.AccentColor),
 				Color:           stringPtr("#F8F8F2"),
 				Bold:            boolPtr(true),
 			},
@@ -128,7 +128,7 @@ func CreateMarkdownUserConfig() ansi.StyleConfig {
 			CrossedOut: boolPtr(true),
 		},
 		Emph: ansi.StylePrimitive{
-			Color:  stringPtr(Koanf.String("theme.accentColor")),
+			Color:  stringPtr(Config.AccentColor),
 			Italic: boolPtr(true),
 		},
 		Strong: ansi.StylePrimitive{
@@ -248,7 +248,7 @@ func CreateMarkdownUserConfig() ansi.StyleConfig {
 					Color: stringPtr("#ff5555"),
 				},
 				GenericEmph: ansi.StylePrimitive{
-					Color:  stringPtr(Koanf.String("theme.accentColor")),
+					Color:  stringPtr(Config.AccentColor),
 					Italic: boolPtr(true),
 				},
 				GenericInserted: ansi.StylePrimitive{

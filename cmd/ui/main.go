@@ -102,7 +102,6 @@ func (m MainModel) Init() tea.Cmd {
 	utils.UserLog.Infof("Checking for config file at path %s", configFilePath)
 
 	utils.LoadDefaultConfig()
-	utils.LoadDefaultLuaConfig()
 
 	// Load prompt model
 	m.input = Prompt{
@@ -113,7 +112,17 @@ func (m MainModel) Init() tea.Cmd {
 	if _, err := os.Stat(configFilePath); err == nil {
 		utils.UserLog.Infof("Config file found at %s, loading...", configFilePath)
 		utils.LoadUserConfig(configFilePath)
+
 	}
+
+	utils.LoadDefaultLuaConfig()
+	// SECTION: Load lua config from user directory
+	luaConfigFilePath := filepath.Join(configHome, ".config", "gloom", "init.lua")
+	if _, err := os.Stat(luaConfigFilePath); err == nil {
+		utils.UserLog.Infof("Lua config file found at %s, loading...", luaConfigFilePath)
+		utils.LoadUserLuaConfig(luaConfigFilePath)
+	}
+
 	tab := m.tabs[m.activeTab].model
 	return tea.Batch(tea.ClearScreen, tea.SetWindowTitle("gloom"), tab.Init())
 }
@@ -260,7 +269,7 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func RenderHelp(keys []key.Binding, width int) string {
 	var b strings.Builder
 
-	accentColor := utils.Koanf.String("theme.accentColor")
+	accentColor := utils.Config.AccentColor
 
 	boldStyle := utils.Renderer.NewStyle().
 		Bold(true).
@@ -275,7 +284,7 @@ func RenderHelp(keys []key.Binding, width int) string {
 func (m MainModel) View() string {
 	tab := m.tabs[m.activeTab].model
 
-	accentColor := utils.Koanf.String("theme.accentColor")
+	accentColor := utils.Config.AccentColor
 
 	// build tabbar
 	var b strings.Builder

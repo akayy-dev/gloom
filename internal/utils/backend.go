@@ -19,8 +19,9 @@ type RSSFeed struct {
 }
 
 type UserConfig struct {
-	Tickers  []string
-	RSSFeeds []RSSFeed
+	AccentColor string
+	Tickers     []string
+	RSSFeeds    []RSSFeed
 }
 
 var (
@@ -35,9 +36,16 @@ var defaultConfig []byte
 //go:embed config/*
 var luaFS embed.FS
 
+func LoadUserLuaConfig(path string) {
+
+}
+
 func LoadDefaultLuaConfig() {
 	L := lua.NewState()
 	defer L.Close()
+
+	cfgTable := L.NewTable()
+	L.SetGlobal("gloom", cfgTable) // add the global
 
 	script, err := luaFS.ReadFile("config/init.lua")
 	// TODO: Change panic to a log.
@@ -48,14 +56,18 @@ func LoadDefaultLuaConfig() {
 		panic(err)
 	}
 
-	cfg := L.GetGlobal("config")
+	// Read the accent color
+	if accentColor := cfgTable.RawGetString("accent_color"); accentColor.Type() == lua.LTString {
+		Config.AccentColor = accentColor.String()
+		UserLog.Infof("Accent color from lua script is %s", Config.AccentColor)
+	}
+
+	cfg := cfgTable.RawGetString("rss_feeds")
 
 	if tbl, ok := cfg.(*lua.LTable); ok {
-		feedTable := tbl.RawGetString("rss_feeds").(*lua.LTable)
-		Config.RSSFeeds = loadRSSFeedsFromTable(*feedTable)
+		Config.RSSFeeds = loadRSSFeedsFromTable(*tbl)
 		UserLog.Info("Got RSS Feed")
 		UserLog.Info(Config.RSSFeeds)
-
 	}
 }
 

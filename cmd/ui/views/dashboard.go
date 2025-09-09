@@ -140,7 +140,7 @@ func (d *Dashboard) Init() tea.Cmd {
 
 	newsTable := table.New(table.WithFocused(false))
 
-	accentColor := utils.Koanf.String("theme.accentColor")
+	accentColor := utils.Config.AccentColor
 
 	foucsedInnerStyle := table.Styles{
 		Header: utils.Renderer.NewStyle().
@@ -433,7 +433,7 @@ func (d *Dashboard) GetKeys() []key.Binding { // TODO: Change to have actual typ
 }
 
 func (d *Dashboard) View() string {
-	accentColor := utils.Koanf.String("theme.accentColor")
+	accentColor := utils.Config.AccentColor
 
 	foucsedBorder := utils.Renderer.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color(accentColor))
 	unfocusedBorder := utils.Renderer.NewStyle().Border(lipgloss.NormalBorder())
