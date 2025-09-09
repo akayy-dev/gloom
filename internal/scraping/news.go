@@ -252,11 +252,12 @@ func GetAllNews() tea.Msg {
 	// TODO: Refactor this code to get news from every RSS feed in the config file
 	// NOTE: Program crashed the first time I tried, but it's 2 in the morning so what do I know
 
-	rssFeeds := utils.Koanf.Strings("news.rss_feeds")
+	rssFeeds := utils.Config.RSSFeeds
 
-	for _, url := range rssFeeds {
-		log.Infof("Getting news from %s", url)
-		news = append(news, GetRSSFeed(url)...)
+	for _, feed := range rssFeeds {
+		log.Infof("Getting news from %s", feed.URL)
+		// NOTE: This does not attach the cookie to the request yet.
+		news = append(news, GetRSSFeed(feed.URL)...)
 	}
 
 	news = append(news, GetTENews()...)

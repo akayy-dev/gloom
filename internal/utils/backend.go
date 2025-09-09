@@ -25,7 +25,8 @@ type UserConfig struct {
 
 var (
 	// Config manager
-	Koanf *koanf.Koanf
+	Koanf  *koanf.Koanf
+	Config UserConfig
 )
 
 //go:embed config/default.json
@@ -34,7 +35,7 @@ var defaultConfig []byte
 //go:embed config/*
 var luaFS embed.FS
 
-func LoadLuaConfig() {
+func LoadDefaultLuaConfig() {
 	L := lua.NewState()
 	defer L.Close()
 
@@ -50,10 +51,37 @@ func LoadLuaConfig() {
 	cfg := L.GetGlobal("config")
 
 	if tbl, ok := cfg.(*lua.LTable); ok {
-		dash := tbl.RawGetString("tickers").String()
-		UserLog.Info("Got tickers from lua")
-		UserLog.Info(dash)
+		feedTable := tbl.RawGetString("rss_feeds").(*lua.LTable)
+		Config.RSSFeeds = loadRSSFeedsFromTable(*feedTable)
+		UserLog.Info("Got RSS Feed")
+		UserLog.Info(Config.RSSFeeds)
+
 	}
+}
+
+func loadRSSFeedsFromTable(feedTable lua.LTable) []RSSFeed {
+	feeds := []RSSFeed{}
+	feedTable.ForEach(func(_, v lua.LValue) {
+		// Check the type, if string it's just a URL
+		// If table it has a cookie
+		feed := RSSFeed{}
+		switch v.Type() {
+		case lua.LTString:
+			feed.URL = v.String()
+			feeds = append(feeds, feed)
+		case lua.LTTable:
+			tbl := v.(*lua.LTable)
+			UserLog.Debug("Found feed table")
+			feed.URL = tbl.RawGetString("url").String()
+			if cookie := tbl.RawGetString("cookie"); cookie.Type() == lua.LTString {
+				feed.Cookie = cookie.String()
+			}
+			feeds = append(feeds, feed)
+		}
+		UserLog.Infof("Found RSS Feed: %s", feed)
+	})
+
+	return feeds
 }
 
 // Takes the bytes from a JSON array and removes their comment lines (lines starting with //)

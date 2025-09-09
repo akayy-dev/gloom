@@ -102,7 +102,7 @@ func (m MainModel) Init() tea.Cmd {
 	utils.UserLog.Infof("Checking for config file at path %s", configFilePath)
 
 	utils.LoadDefaultConfig()
-	utils.LoadLuaConfig()
+	utils.LoadDefaultLuaConfig()
 
 	// Load prompt model
 	m.input = Prompt{
