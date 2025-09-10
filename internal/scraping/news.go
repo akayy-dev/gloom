@@ -8,11 +8,11 @@ import (
 	"gloomberg/internal/utils"
 	"io"
 	"net/http"
-	"os"
 	"regexp"
 	"sort"
 	"strings"
 	"time"
+	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/log"
@@ -62,7 +62,7 @@ func sanitizeJSON(input []byte) []byte {
 // my buest guess as to why this happens is because http.Get is just a curl wrapper, and without
 // a proper user agent yahoo blocks requests. the solution to this is to migrate to colly.
 func PromptNewsURL(article *NewsArticle, progressChan *chan StatusUpdate, ctx context.Context) {
-	client, err := genai.NewClient(ctx, option.WithAPIKey(os.Getenv("GEMINI_KEY")))
+	client, err := genai.NewClient(ctx, option.WithAPIKey(utils.Config.APIKeys["gemini"]))
 
 	if err != nil {
 		// NOTE: This does not seem to work, the screen shows all the other

@@ -105,6 +105,7 @@ func (m MainModel) Init() tea.Cmd {
 
 	utils.LoadDefaultLuaConfig()
 	// SECTION: Load lua config from user directory
+
 	luaConfigFilePath := filepath.Join(configHome, ".config", "gloom", "init.lua")
 	if _, err := os.Stat(luaConfigFilePath); err == nil {
 		utils.UserLog.Infof("Lua config file found at %s, loading...", luaConfigFilePath)
@@ -113,7 +114,8 @@ func (m MainModel) Init() tea.Cmd {
 
 	// Close the Lua VM when the program exits.
 	defer utils.LuaState.Close()
-
+	// Close the ProgramRunning struct to let the lua bindings know the event loop has started.
+	close(utils.ProgramRunning)
 	tab := m.tabs[m.activeTab].model
 	return tea.Batch(tea.ClearScreen, tea.SetWindowTitle("gloom"), tab.Init())
 }

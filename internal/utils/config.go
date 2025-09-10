@@ -1,8 +1,9 @@
 package utils
 
 import (
-	"bytes"
 	"embed"
+	"fmt"
+	"strings"
 
 	lua "github.com/yuin/gopher-lua"
 )
@@ -13,6 +14,7 @@ type RSSFeed struct {
 }
 
 type UserConfig struct {
+	APIKeys          map[string]string
 	WatchlistTickers []string
 	AccentColor      string
 	Tickers          []string
@@ -20,22 +22,47 @@ type UserConfig struct {
 }
 
 var (
-	// Config manager
-	Config   UserConfig
+	// Represents the Users Config.
+	Config UserConfig
+	// The state of the Lua VM.
 	LuaState = lua.NewState()
 )
 
 //go:embed config/*
 var luaFS embed.FS
 
+func RegisterLuaBindings() {
+	LuaState.SetGlobal("notify", LuaState.NewFunction(func(L *lua.LState) int {
+		prompt := L.CheckString(1)
+		displayTime := L.CheckInt(2)
+
+		Notify(prompt, displayTime)
+		return 0
+	}))
+}
+
+// Add a given path to the lua package path to allow requiring files from there.
+func AddLuaPackagePath(dirPath string, configPath string) {
+	packagePath := fmt.Sprintf(`
+		package.path = package.path .. ";%s/?.lua;%s/?/init.lua"
+		`, dirPath, configPath)
+	LuaState.DoString(packagePath)
+}
+
 func LoadUserLuaConfig(path string) {
+	RegisterLuaBindings()
+
+	// Set the package path to the config directory.
+	pathParts := strings.Split(path, "/")
+	dirPath := strings.Join(pathParts[:len(pathParts)-1], "/")
+	AddLuaPackagePath(dirPath, path)
+
 	err := LuaState.DoFile(path)
 	if err != nil {
 		UserLog.Fatalf("Error: could not load config file at %s, %v", path, err)
 	}
 
 	cfg := LuaState.GetGlobal("gloom").(*lua.LTable)
-
 	ParseLuaConfig(*cfg)
 }
 
@@ -77,6 +104,31 @@ func ParseLuaConfig(cfg lua.LTable) {
 			Config.Tickers = append(Config.Tickers, symbol.String())
 		}
 	})
+
+	// Get the API Keys
+	apiKeys := cfg.RawGetString("api_keys")
+	apiKeyTable, ok := apiKeys.(*lua.LTable)
+	if !ok {
+		UserLog.Warn("No 'api_keys' table found in config")
+		return
+	}
+
+	// Before adding to table, make sure the hashmap exists
+	if (Config.APIKeys == nil) {
+		Config.APIKeys = make(map[string]string)
+	}
+
+	apiKeyTable.ForEach(func(_, v lua.LValue) {
+		if v.Type() == lua.LTTable {
+			tbl := v.(*lua.LTable)
+			name := tbl.RawGetString("name").String()
+			apiKey := tbl.RawGetString("key").String()
+			Config.APIKeys[name] = apiKey
+
+			UserLog.Infof("Found key for %s : %s", name, apiKey)
+		}
+	})
+
 }
 
 func LoadDefaultLuaConfig() {
@@ -117,19 +169,4 @@ func loadRSSFeedsFromTable(feedTable lua.LTable) []RSSFeed {
 	})
 
 	return feeds
-}
-
-// Takes the bytes from a JSON array and removes their comment lines (lines starting with //)
-func StripCommentsFromJSON(fileContent []byte) ([]byte, error) {
-	lines := bytes.Split(fileContent, []byte("\n"))
-	var filteredLines [][]byte
-
-	for _, line := range lines {
-		trimmedLine := bytes.TrimSpace(line)
-		if !bytes.HasPrefix(trimmedLine, []byte("//")) {
-			filteredLines = append(filteredLines, line)
-		}
-	}
-
-	return bytes.Join(filteredLines, []byte("\n")), nil
 }

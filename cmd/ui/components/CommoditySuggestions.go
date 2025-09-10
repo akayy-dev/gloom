@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -40,7 +39,7 @@ func (e Suggestion) FilterValue() string {
 func GetStockSuggestions(symbol string) []Suggestion {
 	// NOTE: QueryEscape formats characters like spaces so the request doesn't break.
 	// Also manually defining exchanges because yahoo finance doesn't support currency exchange.
-	url := fmt.Sprintf("https://financialmodelingprep.com/api/v3/search?query=%s&exchange=PNK,NASDAQ,NYSE,BSE,XETRA,LSE,AMEX,HKSE,JPX,ASX,SHZ,NSE,EURONEXT,SHH,TSX&apikey=%s", url.QueryEscape(symbol), os.Getenv("FMP_KEY"))
+	url := fmt.Sprintf("https://financialmodelingprep.com/api/v3/search?query=%s&exchange=PNK,NASDAQ,NYSE,BSE,XETRA,LSE,AMEX,HKSE,JPX,ASX,SHZ,NSE,EURONEXT,SHH,TSX&apikey=%s", url.QueryEscape(symbol), utils.Config.APIKeys["fmp"])
 
 	client := http.Client{Timeout: 15 * time.Second} // The api returns a pretty big set of data, so it's best if we have it time out.
 	resp, err := client.Get(url)
