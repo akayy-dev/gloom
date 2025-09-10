@@ -180,7 +180,7 @@ func (d *Dashboard) Init() tea.Cmd {
 
 	d.tables[0].Focus()
 
-	d.WatchList = utils.Koanf.Strings("dashboard.tickers")
+	d.WatchList = utils.Config.Tickers
 	return tea.Batch(scraping.GetCommodities,
 		scraping.GetAllNews,
 		func() tea.Msg { return commodityUpdateTick() },

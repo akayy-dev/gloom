@@ -3,14 +3,8 @@ package utils
 import (
 	"bytes"
 	"embed"
-	"os"
 
 	lua "github.com/yuin/gopher-lua"
-
-	"github.com/charmbracelet/log"
-	"github.com/knadh/koanf/parsers/json"
-	"github.com/knadh/koanf/providers/rawbytes"
-	"github.com/knadh/koanf/v2"
 )
 
 type RSSFeed struct {
@@ -19,56 +13,85 @@ type RSSFeed struct {
 }
 
 type UserConfig struct {
-	AccentColor string
-	Tickers     []string
-	RSSFeeds    []RSSFeed
+	WatchlistTickers []string
+	AccentColor      string
+	Tickers          []string
+	RSSFeeds         []RSSFeed
 }
 
 var (
 	// Config manager
-	Koanf  *koanf.Koanf
-	Config UserConfig
+	Config   UserConfig
+	LuaState = lua.NewState()
 )
-
-//go:embed config/default.json
-var defaultConfig []byte
 
 //go:embed config/*
 var luaFS embed.FS
 
 func LoadUserLuaConfig(path string) {
+	err := LuaState.DoFile(path)
+	if err != nil {
+		UserLog.Fatalf("Error: could not load config file at %s, %v", path, err)
+	}
 
+	cfg := LuaState.GetGlobal("gloom").(*lua.LTable)
+
+	ParseLuaConfig(*cfg)
+}
+
+// Parses the Lua config table and sets the Config variable to values declared.
+func ParseLuaConfig(cfg lua.LTable) {
+	feeds := cfg.RawGetString("rss_feeds")
+
+	if tbl, ok := feeds.(*lua.LTable); ok {
+		Config.RSSFeeds = loadRSSFeedsFromTable(*tbl)
+		UserLog.Info("Got RSS Feed")
+		UserLog.Info(Config.RSSFeeds)
+	}
+
+	// Read the accent color
+	if accentColor := cfg.RawGetString("accent_color"); accentColor.Type() == lua.LTString {
+		Config.AccentColor = accentColor.String()
+		UserLog.Infof("Accent color from lua script is %s", Config.AccentColor)
+	}
+
+	watchlistVal := cfg.RawGetString("watchlist")
+	watchlist, ok := watchlistVal.(*lua.LTable)
+	if !ok || watchlist == nil {
+		UserLog.Warn("No 'watchlist' table found in config")
+		return
+	}
+
+	tickersVal := watchlist.RawGetString("tickers")
+	tickers, ok := tickersVal.(*lua.LTable)
+	if !ok || tickers == nil {
+		UserLog.Warn("No 'tickers' table found in watchlist")
+		return
+	}
+
+	// Set the value of the tickers to nil (because the config currently has the default tickers)
+	Config.Tickers = nil
+	tickers.ForEach(func(_, symbol lua.LValue) {
+		switch symbol.Type() {
+		case lua.LTString:
+			Config.Tickers = append(Config.Tickers, symbol.String())
+		}
+	})
 }
 
 func LoadDefaultLuaConfig() {
-	L := lua.NewState()
-	defer L.Close()
-
-	cfgTable := L.NewTable()
-	L.SetGlobal("gloom", cfgTable) // add the global
+	cfgTable := LuaState.NewTable()
+	LuaState.SetGlobal("gloom", cfgTable) // add the global
 
 	script, err := luaFS.ReadFile("config/init.lua")
 	// TODO: Change panic to a log.
 	if err != nil {
 		panic(err)
 	}
-	if err := L.DoString(string(script)); err != nil {
+	if err := LuaState.DoString(string(script)); err != nil {
 		panic(err)
 	}
-
-	// Read the accent color
-	if accentColor := cfgTable.RawGetString("accent_color"); accentColor.Type() == lua.LTString {
-		Config.AccentColor = accentColor.String()
-		UserLog.Infof("Accent color from lua script is %s", Config.AccentColor)
-	}
-
-	cfg := cfgTable.RawGetString("rss_feeds")
-
-	if tbl, ok := cfg.(*lua.LTable); ok {
-		Config.RSSFeeds = loadRSSFeedsFromTable(*tbl)
-		UserLog.Info("Got RSS Feed")
-		UserLog.Info(Config.RSSFeeds)
-	}
+	ParseLuaConfig(*cfgTable)
 }
 
 func loadRSSFeedsFromTable(feedTable lua.LTable) []RSSFeed {
@@ -109,48 +132,4 @@ func StripCommentsFromJSON(fileContent []byte) ([]byte, error) {
 	}
 
 	return bytes.Join(filteredLines, []byte("\n")), nil
-}
-
-// Loads the user defined config.
-func LoadUserConfig(path string) {
-	log.Debug("Loading configuration at %s", path)
-	if Koanf == nil {
-		Koanf = koanf.New(".")
-	}
-
-	fileContent, err := os.ReadFile(path)
-	if err != nil {
-		log.Warnf("Unable to read user config file, %v", err)
-		return
-	}
-
-	sanitizedJSON, err := StripCommentsFromJSON(fileContent)
-	if err != nil {
-		log.Warnf("Unable to strip comments from user config file, %v", err)
-		return
-	}
-
-	if err := Koanf.Load(rawbytes.Provider(sanitizedJSON), json.Parser()); err != nil {
-		log.Fatalf("Error occurred while loading config: %v", err)
-	}
-	log.Info("Loaded user config file")
-}
-
-// Loads the default user config
-func LoadDefaultConfig() {
-	if Koanf == nil {
-		Koanf = koanf.New(".")
-	}
-
-	sanitizedJSON, err := StripCommentsFromJSON(defaultConfig)
-	if err != nil {
-		log.Warnf("Unable to read user config file, %v", err)
-		return
-	}
-
-	err = Koanf.Load(rawbytes.Provider(sanitizedJSON), json.Parser())
-	if err != nil {
-		log.Fatalf("Error loading default config %v", err)
-	}
-	log.Info("Loaded default config.")
 }

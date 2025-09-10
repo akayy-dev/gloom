@@ -98,21 +98,9 @@ func (m MainModel) Init() tea.Cmd {
 		utils.UserLog.Fatal("Error ocurred while loading config file path: %v", err)
 	}
 
-	configFilePath := filepath.Join(configHome, ".config", "gloom", "config.json")
-	utils.UserLog.Infof("Checking for config file at path %s", configFilePath)
-
-	utils.LoadDefaultConfig()
-
 	// Load prompt model
 	m.input = Prompt{
 		Model: textinput.New(),
-	}
-
-	// Check if user config file exists
-	if _, err := os.Stat(configFilePath); err == nil {
-		utils.UserLog.Infof("Config file found at %s, loading...", configFilePath)
-		utils.LoadUserConfig(configFilePath)
-
 	}
 
 	utils.LoadDefaultLuaConfig()
@@ -122,6 +110,9 @@ func (m MainModel) Init() tea.Cmd {
 		utils.UserLog.Infof("Lua config file found at %s, loading...", luaConfigFilePath)
 		utils.LoadUserLuaConfig(luaConfigFilePath)
 	}
+
+	// Close the Lua VM when the program exits.
+	defer utils.LuaState.Close()
 
 	tab := m.tabs[m.activeTab].model
 	return tea.Batch(tea.ClearScreen, tea.SetWindowTitle("gloom"), tab.Init())

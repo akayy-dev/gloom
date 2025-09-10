@@ -257,7 +257,7 @@ func GetAllNews() tea.Msg {
 	for _, feed := range rssFeeds {
 		log.Infof("Getting news from %s", feed.URL)
 		// NOTE: This does not attach the cookie to the request yet.
-		news = append(news, GetRSSFeed(feed.URL)...)
+		news = append(news, GetRSSFeed(feed)...)
 	}
 
 	news = append(news, GetTENews()...)
@@ -270,13 +270,15 @@ func GetAllNews() tea.Msg {
 }
 
 // Get `NewsArticle`s from an RSS url
-func GetRSSFeed(RSS_URL string) []NewsArticle {
+func GetRSSFeed(Feed utils.RSSFeed) []NewsArticle {
 	fp := feed.Parser{}
+
+	RSS_URL := Feed.URL
 
 	feed, err := fp.ParseURL(RSS_URL)
 
 	if err != nil {
-		log.Error("Failed to get Yahoo News data", "error: ", err)
+		log.Errorf("Failed to get %s data", "error: %s", Feed.URL, err)
 	}
 
 	source := feed.Title // title of the RSS feed
