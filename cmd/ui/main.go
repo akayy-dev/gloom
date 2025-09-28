@@ -262,7 +262,7 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func RenderHelp(keys []key.Binding, width int) string {
 	var b strings.Builder
 
-	accentColor := utils.Config.AccentColor
+	accentColor := utils.Config.Theme.AccentColor
 
 	boldStyle := utils.Renderer.NewStyle().
 		Bold(true).
@@ -277,7 +277,7 @@ func RenderHelp(keys []key.Binding, width int) string {
 func (m MainModel) View() string {
 	tab := m.tabs[m.activeTab].model
 
-	accentColor := utils.Config.AccentColor
+	accentColor := utils.Config.Theme.AccentColor
 
 	// build tabbar
 	var b strings.Builder

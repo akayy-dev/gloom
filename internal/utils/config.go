@@ -13,10 +13,17 @@ type RSSFeed struct {
 	Cookie string
 }
 
+type ThemeSettings struct {
+	AccentColor      string
+	PositiveMovement string
+	NegativeMovement string
+}
+
 type UserConfig struct {
 	APIKeys          map[string]string
 	WatchlistTickers []string
 	AccentColor      string
+	Theme            ThemeSettings
 	Tickers          []string
 	RSSFeeds         []RSSFeed
 }
@@ -57,12 +64,14 @@ func LoadUserLuaConfig(path string) {
 	dirPath := strings.Join(pathParts[:len(pathParts)-1], "/")
 	AddLuaPackagePath(dirPath, path)
 
+	// Gloom Global
+	cfg := LuaState.GetGlobal("gloom").(*lua.LTable)
+
 	err := LuaState.DoFile(path)
 	if err != nil {
 		UserLog.Fatalf("Error: could not load config file at %s, %v", path, err)
 	}
 
-	cfg := LuaState.GetGlobal("gloom").(*lua.LTable)
 	ParseLuaConfig(*cfg)
 }
 
@@ -77,13 +86,23 @@ func ParseLuaConfig(cfg lua.LTable) {
 	}
 
 	// Read the accent color
-	if accentColor := cfg.RawGetString("accent_color"); accentColor.Type() == lua.LTString {
-		Config.AccentColor = accentColor.String()
-		UserLog.Infof("Accent color from lua script is %s", Config.AccentColor)
+	// Read the theme table and set the Theme attribute
+	if themeVal := cfg.RawGetString("theme"); themeVal.Type() == lua.LTTable {
+		themeTable := themeVal.(*lua.LTable)
+		if accent := themeTable.RawGetString("accent_color"); accent.Type() == lua.LTString {
+			Config.Theme.AccentColor = accent.String()
+		}
+		if up := themeTable.RawGetString("up"); up.Type() == lua.LTString {
+			Config.Theme.PositiveMovement = up.String()
+		}
+		if down := themeTable.RawGetString("down"); down.Type() == lua.LTString {
+			Config.Theme.NegativeMovement = down.String()
+		}
+		UserLog.Infof("Theme loaded: %+v", Config.Theme)
 	}
 
 	watchlistVal := cfg.RawGetString("watchlist")
-	watchlist, ok := watchlistVal.(*lua.LTable)
+	watchlist, ok := watchlistVal.(*lua.LTable) // Make sure the type is a lua table
 	if !ok || watchlist == nil {
 		UserLog.Warn("No 'watchlist' table found in config")
 		return
@@ -114,7 +133,7 @@ func ParseLuaConfig(cfg lua.LTable) {
 	}
 
 	// Before adding to table, make sure the hashmap exists
-	if (Config.APIKeys == nil) {
+	if Config.APIKeys == nil {
 		Config.APIKeys = make(map[string]string)
 	}
 
@@ -134,6 +153,20 @@ func ParseLuaConfig(cfg lua.LTable) {
 func LoadDefaultLuaConfig() {
 	cfgTable := LuaState.NewTable()
 	LuaState.SetGlobal("gloom", cfgTable) // add the global
+
+	// SECTION: Create a watchlist.tickers table
+	watchlistTable := LuaState.NewTable()
+	LuaState.SetField(cfgTable, "watchlist", watchlistTable)
+	tickersTable := LuaState.NewTable()
+	LuaState.SetField(watchlistTable, "tickers", tickersTable)
+
+	// SECTION: Load RSS Feeds table
+	rssFeedsTable := LuaState.NewTable()
+	LuaState.SetField(cfgTable, "rss_feeds", rssFeedsTable)
+
+	// SECTION: Load theme Table
+	themeTable := LuaState.NewTable()
+	LuaState.SetField(cfgTable, "theme", themeTable)
 
 	script, err := luaFS.ReadFile("config/init.lua")
 	// TODO: Change panic to a log.

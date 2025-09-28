@@ -86,10 +86,22 @@ type RowData struct {
 // Return a table.Row for the stock table to use
 func (d RowData) Render() table.Row {
 	var color string
+
+	/* FUTURE:
+		The following comments for this 
+		is code for a *failed* attempt at dynamically changing
+		the color of up & down movements. It didn't work, but I think it shows a
+		good starting point for eventually adding the feature if I or a contributor
+		gets to adding the feature.
+	*/
+
+	// profile := termenv.ColorProfile()
 	if d.PercentChange >= 0 {
 		color = "\033[38;5;46m" // green
+		// color = profile.Color(utils.Config.Theme.PositiveMovement).Sequence(true)
 	} else {
 		color = "\033[38;5;196m" // red
+		// color = profile.Color(utils.Config.Theme.NegativeMovement).Sequence(true)
 	}
 	return table.Row{
 		fmt.Sprintf("%s%s (%s)", color, d.CompanyName, d.Symbol),
@@ -140,7 +152,7 @@ func (d *Dashboard) Init() tea.Cmd {
 
 	newsTable := table.New(table.WithFocused(false))
 
-	accentColor := utils.Config.AccentColor
+	accentColor := utils.Config.Theme.AccentColor
 
 	foucsedInnerStyle := table.Styles{
 		Header: utils.Renderer.NewStyle().
@@ -433,7 +445,7 @@ func (d *Dashboard) GetKeys() []key.Binding { // TODO: Change to have actual typ
 }
 
 func (d *Dashboard) View() string {
-	accentColor := utils.Config.AccentColor
+	accentColor := utils.Config.Theme.AccentColor
 
 	foucsedBorder := utils.Renderer.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color(accentColor))
 	unfocusedBorder := utils.Renderer.NewStyle().Border(lipgloss.NormalBorder())

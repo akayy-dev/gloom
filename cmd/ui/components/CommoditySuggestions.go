@@ -58,7 +58,7 @@ func GetStockSuggestions(symbol string) []Suggestion {
 	err = json.Unmarshal(body, &list)
 
 	if err != nil {
-		utils.UserLog.Fatalf("Fatal error occurred while Unmarshaling StockList in GetStockSuggestions() err: %s, JSON %b", err, body)
+		utils.UserLog.Fatalf("Fatal error occurred while Unmarshaling StockList in GetStockSuggestions() err: %s, JSON %b", err, string(body))
 	}
 
 	return list
@@ -111,7 +111,7 @@ func (s *CommoditySuggestions) Init() tea.Cmd {
 	}
 
 	// Change the styling of the currently selecte
-	accentColor := lipgloss.Color(utils.Config.AccentColor)
+	accentColor := lipgloss.Color(utils.Config.Theme.AccentColor)
 	delegate.Styles.SelectedTitle = delegate.Styles.SelectedTitle.Foreground(accentColor).BorderForeground(accentColor)
 	delegate.Styles.SelectedDesc = delegate.Styles.SelectedDesc.Foreground(accentColor).BorderForeground(accentColor)
 
@@ -148,10 +148,10 @@ func (s *CommoditySuggestions) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (s *CommoditySuggestions) View() string {
-	titleStyle := utils.Renderer.NewStyle().Bold(true).Foreground(lipgloss.Color(utils.Config.AccentColor))
+	titleStyle := utils.Renderer.NewStyle().Bold(true).Foreground(lipgloss.Color(utils.Config.Theme.AccentColor))
 	listStyle := utils.Renderer.NewStyle().Border(lipgloss.RoundedBorder()).Width(s.Width).Height(s.Height)
 	s.List.Styles.Title = titleStyle
-	s.List.Styles.ActivePaginationDot = utils.Renderer.NewStyle().Foreground(lipgloss.Color(utils.Config.AccentColor))
+	s.List.Styles.ActivePaginationDot = utils.Renderer.NewStyle().Foreground(lipgloss.Color(utils.Config.Theme.AccentColor))
 	return listStyle.Render(s.List.View())
 }
 
