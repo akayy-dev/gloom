@@ -17,9 +17,7 @@ gloom.rss_feeds = {
 }
 
 -- This table configures the stock tickers that will be displayed on the 
-gloom.watchlist = {
-	tickers = "SPY", "FEZ", "AAPL", "AMZN", "GOOGL", "MSFT", "NVDA", "META"
-}
+gloom.watchlist.tickers = {"SPY", "FEZ", "AAPL", "AMZN", "GOOGL", "MSFT", "NVDA", "META"}
 
 -- Theme settings
 gloom.theme.accent_color = "#703FFD"
