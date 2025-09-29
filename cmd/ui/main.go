@@ -380,10 +380,7 @@ func setupSSHServer(host string, port string, logFile *os.File) {
 }
 
 func main() {
-	logFile, err := os.OpenFile("./debug.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
-		log.Fatal(err)
-	}
+	logFile, _ := setupLogging("./debug.log")
 
 	defer logFile.Close()
 
@@ -399,24 +396,31 @@ func main() {
 		utils.UserLog.SetOutput(logFile)
 		log.SetOutput(logFile)
 
-		var dash MappedModel = &views.Dashboard{
-			Name: "Dashboard A",
-		}
-
-		dashTab := &Tab{
-			name:  "Dashboard",
-			model: dash,
-		}
-
-		m := MainModel{
-			tabs:      []*Tab{dashTab},
-			activeTab: 0,
-		}
+		m := createApplicationModel()
 
 		utils.Program = tea.NewProgram(m)
 		utils.Program.Run()
 	}
 }
+
+
+// Create a basic application instance.
+func createApplicationModel() MappedModel {
+	dash := views.Dashboard{
+		Name: "Dashboard A",
+	}
+
+	dashTab := &Tab{
+		name: "Dashboard",
+		model: &dash,
+	}
+
+	return MainModel{
+		tabs: []*Tab{dashTab},
+		activeTab: 0,
+	}
+}
+
 
 // Custom middleware for bubbletea, sets the Program variable.
 func bubbleteaMiddleware() wish.Middleware {
@@ -432,25 +436,40 @@ func bubbleteaMiddleware() wish.Middleware {
 	}
 
 	return bm.MiddlewareWithProgramHandler(teaHandler, termenv.Ascii)
+}
 
+// Creates a logger and outputs the logs to whatever the path is set to.
+func setupLogging(path string) (*os.File, error) {
+	logTimeStamp := time.Now().Format("01.02.2006 15:04 EST")
+
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
+	if err != nil {
+		log.Fatalf("Cannot create log file: %s", err)
+		return f, err
+	}
+	utils.UserLog = log.New(f)
+	// NOTE: Setting time format doesn't work, figure out how to fix this later.
+	utils.UserLog.SetTimeFormat(logTimeStamp)
+	return f, nil
 }
 
 // Setup bubletea model to work with Wish
 func setupSSHApplication(s ssh.Session) (tea.Model, []tea.ProgramOption) {
-	log.Info("setupBubbleTea")
 	userString := fmt.Sprintf("%s.%s", s.User(), strings.Split(s.RemoteAddr().String(), ":")[0])
 	log.Infof("Connection from %s", userString)
+
 	// pty, _, _ := s.Pty()
 
 	// use instead of lipgloss.NewStyle()
 	utils.Renderer = bubbletea.MakeRenderer(s)
 
 	// CREATE USER LOGGER
-	/* BUG: File closes after function ends,
-	making logging impossible after end of function
-	Need to make a cleanup function that runs when the server closes,
-	can be handled in the main function if we make the file a global variable.
-	*/
+	/* BUG:
+				File closes after function ends,
+				making logging impossible after end of function
+				Need to make a cleanup function that runs when the server closes,
+				can be handled in the main function if we make the file a global variable.
+		*/
 
 	logTimeStamp := time.Now().Format("01.02.2006 15:04 MST")
 
@@ -459,21 +478,12 @@ func setupSSHApplication(s ssh.Session) (tea.Model, []tea.ProgramOption) {
 		log.Error("Cannot create logs directory", "error", err)
 	}
 
-	f, err := os.OpenFile(
+	f, _ := setupLogging(
 		fmt.Sprintf("./logs/%s %s.log",
 			userString,
 			logTimeStamp,
 		),
-		os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
-
-	if err != nil {
-		log.Error("Cannot create log file", err)
-	}
-
-	utils.UserLog = log.New(f)
-	// NOTE: Setting time format doesn't work, figure out how to fix this later.
-	utils.UserLog.SetTimeFormat("2006/01/02 15:04:05")
-	utils.UserLog.Info("User log created")
+	)
 
 	// This function runs on
 	go func() {
@@ -484,19 +494,7 @@ func setupSSHApplication(s ssh.Session) (tea.Model, []tea.ProgramOption) {
 		}
 	}()
 
-	var dash MappedModel = &views.Dashboard{
-		Name: "Dashboard A",
-	}
-
-	dashTab := &Tab{
-		name:  "Dashboard",
-		model: dash,
-	}
-
-	m := MainModel{
-		tabs:      []*Tab{dashTab},
-		activeTab: 0,
-	}
+	m := createApplicationModel()
 
 	return m, []tea.ProgramOption{tea.WithAltScreen(), tea.WithInput(s), tea.WithOutput(s)}
 }
